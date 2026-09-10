@@ -16,6 +16,48 @@ Currently supports `rFactor 2` and `Le Mans Ultimate`, and runs on `Windows` and
 
 ![preview](https://user-images.githubusercontent.com/21177177/282278970-b806bf02-a83d-4baa-8b45-0ca10f28f775.png)
 
+
+
+## What's different from upstream TinyPedal
+
+[#whats-different-from-upstream-tinypedal](#whats-different-from-upstream-tinypedal)
+
+This fork adds the following on top of official TinyPedal v2.50.0:
+
+- **Vehicle-specific automatic preset loading** — instead of only loading a
+  preset based on vehicle *class*, this build can load a preset per exact
+  vehicle *model*, defined in `settings/vehicle_presets.json`. Falls back to
+  the original class-based auto-load if no model-specific mapping is found.
+  Also detects vehicle swaps while already on track, not just on session start.
+- **Fixed settings path resolution for packaged Windows builds** — the
+  packaged `.exe` now correctly creates its config/settings folders next to
+  itself instead of looking in the wrong location.
+- **Overlay window positions are now saved when the app closes.**
+- Minor stability fix for startup timing.
+
+### Setting up vehicle-specific presets
+
+[#setting-up-vehicle-specific-presets](#setting-up-vehicle-specific-presets)
+
+Create/edit `settings/vehicle_presets.json`, grouped by vehicle class, mapping
+the exact in-game vehicle model name to a preset file (relative to the
+`settings` folder):
+
+```json
+{
+  "Hypercar": {
+    "Porsche 963 LMDh": "presets/porsche_963.json",
+    "Ferrari 499P": "presets/ferrari_499p.json"
+  }
+}
+```
+
+If a vehicle isn't listed here, TinyPedal falls back to its normal
+class-based preset auto-loading.
+
+
+
+
 ## Requirements
 
 ### Supported Sims
