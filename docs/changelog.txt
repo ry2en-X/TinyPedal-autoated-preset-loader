@@ -3,6 +3,13 @@ WIP
 * General
   - Fixed pace notes playback kept active even when disabled.
 
+2.50.2 (2026-09-10)
+-----------------------------
+* Preset Management
+  - Fixed saving overlay positions when switching presets.
+  - Added vehicle-specific automatic preset loading.
+  - Fixed preset and settings path handling in packaged Windows builds.
+
 2.50.0 (2026-08-31)
 -----------------------------
 * General

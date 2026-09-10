@@ -30,3 +30,7 @@ test*.py
 *.zip
 *.log
 *.db
+# eigener Build-Output, wird als Release hochgeladen, nicht committet
+/dist-build/
+*.7z
+*.exe

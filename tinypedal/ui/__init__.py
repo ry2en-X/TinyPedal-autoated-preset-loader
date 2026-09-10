@@ -29,8 +29,9 @@ from PySide2.QtWidgets import QApplication
 class UIScaler:
     """UI font & size scaler"""
     # Global base font size in point (not counting dpi scale)
-    FONT_POINT = QApplication.font().pointSize()
-    FONT_DPI = QApplication.fontMetrics().fontDpi()
+    _application = QApplication.instance()
+    FONT_POINT = _application.font().pointSize() if _application else 9
+    FONT_DPI = _application.fontMetrics().fontDpi() if _application else 96
     # Global base font size in pixel (dpi scaled)
     # dpi scale = font dpi / 96
     # px = (pt * dpi scale) * 96 / 72

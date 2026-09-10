@@ -22,14 +22,30 @@ User file access function
 
 import logging
 import os
+import sys
 
 from ..const_app import APP_NAME, PLATFORM
 
 logger = logging.getLogger(__name__)
 
 
+def _application_root() -> str:
+    """Get application root directory for packaged and source runs."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _resolve_user_path(filepath: str) -> str:
+    """Resolve relative user paths from the application root."""
+    if not os.path.isabs(filepath):
+        filepath = os.path.join(_application_root(), filepath)
+    return os.path.normpath(filepath) + os.sep
+
+
 def set_user_data_path(filepath: str) -> str:
     """Set user data path, create if not exist"""
+    filepath = _resolve_user_path(filepath)
     if not os.path.exists(filepath):
         logger.info("%s folder does not exist, attemp to create", filepath)
         try:
@@ -78,7 +94,7 @@ def set_default_config_path(filepath: str) -> str:
     Default to XDG_CONFIG_HOME ($HOME/.config) on Linux.
     """
     if PLATFORM.WINDOWS:
-        return filepath
+        return _resolve_user_path(filepath)
     # Linux
     from xdg import BaseDirectory as BD
     return BD.save_config_path(APP_NAME, filepath)
@@ -91,7 +107,7 @@ def set_default_data_path(filepath: str) -> str:
     Default to XDG_DATA_HOME ($HOME/.local/share) on Linux.
     """
     if PLATFORM.WINDOWS:
-        return filepath
+        return _resolve_user_path(filepath)
     # Linux
     from xdg import BaseDirectory as BD
     return BD.save_data_path(APP_NAME, filepath)

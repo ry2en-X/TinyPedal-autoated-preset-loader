@@ -75,6 +75,7 @@ class Base(QWidget):
     def stop(self):
         """Stop and close widget"""
         widget_name = self.widget_name
+        self.__save_position()
         self.__toggle_timer(True)
         self.__break_signal()
         self.__unload_resource()

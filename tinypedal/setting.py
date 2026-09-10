@@ -467,14 +467,42 @@ class Setting:
         if filename in self._save_queue:
             return
 
+
+
+
+
+
         # Check if valid file name
         if filename is None:
             logger.error("USERDATA: invalid config type %s, abort saving", config_type)
+
+        # vehicle_presets.json is a read-only custom mapping.
+        # It is loaded by overlay_control.py and must never be
+        # overwritten by TinyPedal's normal settings system.
+        elif filename == "vehicle_presets.json":
+            logger.info(
+                "USERDATA: %s is read-only, changes not saved",
+                filename,
+            )
+
         # Check if file is locked
         elif filename in self.user.filelock:
-            logger.info("USERDATA: %s is locked, changes not saved", filename)
+            logger.info(
+                "USERDATA: %s is locked, changes not saved",
+                filename,
+            )
+
         # Add to save queue
         elif filename not in self._save_queue:
+
+
+
+
+
+
+
+
+
             # Save to global config path
             if config_type in (
                 ConfigType.CONFIG,
