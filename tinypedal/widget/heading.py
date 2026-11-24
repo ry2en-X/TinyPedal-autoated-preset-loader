@@ -23,10 +23,9 @@ Heading Widget
 from PySide2.QtCore import QPointF, QRectF, Qt
 from PySide2.QtGui import QBrush, QPainter, QPen, QPixmap
 
+from .. import api, minfo
 from .. import calculation as calc
-from ..api_control import api
-from ..const_file import ImageFile
-from ..module_info import minfo
+from ..constant import FILE
 from ._base import Overlay
 
 
@@ -82,7 +81,7 @@ class Realtime(Overlay):
         self.resize(self.area_size, self.area_size)
         self.pixmap_background = QPixmap(self.area_size, self.area_size)
         self.pixmap_dot = QPixmap(self.dot_size * 2, self.dot_size * 2)
-        self.pixmap_icon = QPixmap(ImageFile.COMPASS).scaledToWidth(
+        self.pixmap_icon = QPixmap(FILE.IMAGE_COMPASS).scaledToWidth(
             int(self.area_size * 1.5),
             mode=Qt.SmoothTransformation
         )
@@ -123,11 +122,11 @@ class Realtime(Overlay):
         )
 
         # Vehicle orientation yaw
-        temp_veh_ori_yaw = calc.degrees(api.read.vehicle.orientation_yaw_radians()) + 180
+        temp_veh_ori_yaw = calc.degrees(api.read.vehicle.orientation_yaw()) + 180
 
         # Direction of travel yaw angle
         if self.last_pos != pos_curr and speed > 1:
-            self.yaw_angle = temp_veh_ori_yaw - calc.degrees(calc.oriyaw(
+            self.yaw_angle = temp_veh_ori_yaw - calc.degrees(calc.atan2(
                 pos_curr[0] - self.last_pos[0], pos_curr[1] - self.last_pos[1])) + 180
             self.last_pos = pos_curr
         elif speed <= 1:

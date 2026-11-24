@@ -27,12 +27,7 @@ from math import acos, atan, atan2, ceil, cos, degrees, dist, hypot, radians, si
 from statistics import fmean
 from typing import Any, Callable, Sequence
 
-from .const_common import FLOAT_INF
-
-distance = dist  # distance between 2 coordinates
-hypotenuse = hypot  # distance from origin point (0) to a point
-mean = fmean
-oriyaw = atan2  # orientation yaw to radians
+from .constant import DATA
 
 
 # Common
@@ -102,12 +97,12 @@ def mean_iter(average: float, value: float, num_samples: int) -> float:
 
 def min_vs_avg(data: Sequence) -> float:
     """Min vs average"""
-    return abs(min(data) - mean(data))
+    return abs(min(data) - fmean(data))
 
 
 def max_vs_avg(data: Sequence) -> float:
     """Max vs average"""
-    return abs(max(data) - mean(data))
+    return abs(max(data) - fmean(data))
 
 
 def max_vs_min(data: Sequence) -> float:
@@ -353,11 +348,11 @@ def tri_coords_angle(a_len: float, b_len: float, c_len: float) -> float:
 def quad_coords_angle(
     coords_center: tuple[float, float], coords_start: tuple[float, float], coords_mid: tuple[float, float], coords_end: tuple[float, float]) -> float:
     """Quad-coordinates angle (degree)"""
-    center1_edge = distance(coords_start, coords_mid)
-    center2_edge = distance(coords_mid, coords_end)
-    start_edge = distance(coords_center, coords_start)
-    mid_edge = distance(coords_center, coords_mid)
-    end_edge = distance(coords_center, coords_end)
+    center1_edge = dist(coords_start, coords_mid)
+    center2_edge = dist(coords_mid, coords_end)
+    start_edge = dist(coords_center, coords_start)
+    mid_edge = dist(coords_center, coords_mid)
+    end_edge = dist(coords_center, coords_end)
     rad1 = tri_coords_angle(center1_edge, start_edge, mid_edge)
     rad2 = tri_coords_angle(center2_edge, mid_edge, end_edge)
     return degrees(rad1 + rad2)
@@ -381,7 +376,12 @@ def turning_direction(yaw_rad: float, x1: float, y1: float, x2: float, y2: float
 def clock_time(seconds: float, start: float = 0, scale: float = 1) -> float:
     """Clock time (seconds) looped in full 24 hours, 0 to 86400"""
     time_curr = start + seconds * scale
-    return time_curr - time_curr // 86400 * 86400
+    clock_time = time_curr - time_curr // 86400 * 86400
+    if clock_time < 0:
+        return 0
+    if clock_time > 86400:
+        return 86400
+    return clock_time
 
 
 def clock_time_to_seconds(clock_time: str) -> float:
@@ -437,7 +437,7 @@ def sec2stinttime(seconds: float) -> str:
 
 
 def delta_telemetry(
-    dataset: list, position: float, target: float,
+    dataset: Sequence[tuple[float, float]], position: float, target: float,
     condition: bool = True, position_column: int = 0, target_column: int = 1) -> float:
     """Calculate delta telemetry data"""
     if not condition:
@@ -456,6 +456,16 @@ def delta_telemetry(
     return 0
 
 
+def delta_laptime(opt_data: list, plr_data: list, max_output: int, max_record: int = 5) -> tuple[float, ...]:
+    """Generate delta from target player's lap time data set"""
+    return tuple(
+        plr_data[index] - opt_data[index]
+        if plr_data[index] > 0 < opt_data[index]  # check invalid lap time
+        else DATA.MAX_SECONDS
+        for index in range(max_record - max_output, max_record)
+    )
+
+
 def exp_mov_avg(factor: float, ema_last: float, source: float) -> float:
     """Calculate exponential moving average"""
     return ema_last + factor * (source - ema_last)
@@ -471,9 +481,17 @@ def ema_filter(samples: int, min_samples: int = 1) -> Callable[[float, float], f
     return partial(exp_mov_avg, ema_factor(samples, min_samples))
 
 
-def accumulated_sum(data: list, end_index: int) -> float:
-    """Calculate accumulated sum"""
-    return sum(data[:end_index + 1])
+def sector_sum(data: list, end_index: int, max_value: float = DATA.MAX_SECONDS) -> float:
+    """Calculate accumulated sector sum"""
+    time_sum = 0.0
+    for i, v in enumerate(data):
+        if i > end_index:
+            break
+        if 0 < v < max_value:
+            time_sum += v
+        else:  # stop if any invalid value
+            break
+    return time_sum
 
 
 # Search
@@ -486,9 +504,8 @@ def search_column_key(key: Sequence, column: int | None = None):
 
 def linear_search_higher(data: Sequence, target: float, column: int | None = None) -> int:
     """linear search nearest value higher index from unordered list"""
-    #key = lambda x:x[column] if column >= 0 else x
     end = len(data) - 1
-    nearest = FLOAT_INF
+    nearest = DATA.FLOAT_INF
     for index, data_row in enumerate(data):
         if target <= search_column_key(data_row, column) < nearest:
             nearest = search_column_key(data_row, column)
@@ -650,7 +667,7 @@ def line_intersect_coords(
     rad: amount rotation (radians) to apply
     length: length between coordinates
     """
-    yaw_rad = oriyaw(
+    yaw_rad = atan2(
         coord_b[1] - coord_a[1],
         coord_b[0] - coord_a[0]
     )
@@ -787,27 +804,27 @@ def fuel_to_energy_ratio(fuel: float, energy: float) -> float:
 
 
 # Wear
-def wear_lifespan_in_laps(remaining: float, wear_last_lap: float) -> float:
+def wear_lifespan_in_laps(remaining: float, wear_last_lap: float, max_laps: float = 999) -> float:
     """Wear lifespan in laps = remaining / last lap wear"""
     if wear_last_lap > 0:
         est_laps = remaining / wear_last_lap
     else:
-        est_laps = 999
-    if est_laps > 999:
-        est_laps = 999
+        est_laps = max_laps
+    if est_laps > max_laps:
+        est_laps = max_laps
     return est_laps
 
 
-def wear_lifespan_in_mins(remaining: float, wear_last_lap: float, laptime: float) -> float:
+def wear_lifespan_in_mins(remaining: float, wear_last_lap: float, laptime: float, max_mins: float = 999) -> float:
     """Wear lifespan in minutes = remaining / last lap wear * laptime / 60"""
     if laptime <= 0:
-        return 999
+        return max_mins
     if wear_last_lap > 0:
         est_mins = remaining / wear_last_lap * laptime / 60
     else:
-        est_mins = 999
-    if est_mins > 999:
-        est_mins = 999
+        est_mins = max_mins
+    if est_mins > max_mins:
+        est_mins = max_mins
     return est_mins
 
 
@@ -872,7 +889,7 @@ def wheel_rotation_bias(rot_axle: float, rot_left: float, rot_right: float) -> f
     """Wheel rotation bias (difference) against axle rotation"""
     if rot_axle:
         return abs((rot_left - rot_right) / rot_axle)
-    return 0
+    return -1
 
 
 def wheel_rotation_ratio(rot_axle: float, rot_left: float) -> float:

@@ -20,9 +20,8 @@
 Force Widget
 """
 
-from .. import units
-from ..const_common import TEXT_NA
-from ..module_info import minfo
+from .. import minfo, units
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -46,7 +45,7 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
-        bar_width = font_m.width * 6 + bar_padx
+        bar_width = font_m.width * 6
 
         # Config units
         self.unit_weight = units.set_unit_weight(self.cfg.units["weight_unit"])
@@ -55,7 +54,8 @@ class Realtime(Overlay):
         # Longitudinal g-force
         if self.wcfg["show_longitudinal_g_force"]:
             self.bar_gforce_lgt = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -70,7 +70,8 @@ class Realtime(Overlay):
         # Lateral g-force
         if self.wcfg["show_lateral_g_force"]:
             self.bar_gforce_lat = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -85,7 +86,8 @@ class Realtime(Overlay):
         # Downforce ratio
         if self.wcfg["show_downforce_ratio"]:
             self.bar_df_ratio = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -104,7 +106,8 @@ class Realtime(Overlay):
                 self.wcfg["warning_color_liftforce"],
             )
             self.bar_df_front = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -123,7 +126,8 @@ class Realtime(Overlay):
                 self.wcfg["warning_color_liftforce"],
             )
             self.bar_df_rear = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -138,7 +142,8 @@ class Realtime(Overlay):
         # Estimated static weight
         if self.wcfg["show_estimated_static_weight"]:
             self.bar_static = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -153,7 +158,8 @@ class Realtime(Overlay):
         # Estimated dynamic weight
         if self.wcfg["show_estimated_dynamic_weight"]:
             self.bar_dynamic = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -168,7 +174,8 @@ class Realtime(Overlay):
         # Acceleration reduction
         if self.wcfg["show_acceleration_reduction"]:
             self.bar_accloss = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,

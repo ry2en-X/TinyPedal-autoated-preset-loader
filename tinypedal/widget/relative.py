@@ -20,19 +20,16 @@
 Relative Widget
 """
 
+from __future__ import annotations
+
+from .. import api, minfo, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import (
-    MAX_SECONDS,
-    REL_TIME_DEFAULT,
-    TEXT_NOLAPTIME,
-    TEXT_PLACEHOLDER,
-)
+from ..constant import DATA
 from ..formatter import random_color_class, shorten_driver_name
-from ..module_info import minfo
+from ..module_info import VehicleData
 from ..userfile.custom_image import load_brand_logo_image
 from ..userfile.heatmap import select_compound_color, select_compound_symbol
+from ..validator import is_transparent_color
 from ._base import Overlay
 from ._painter import MultiCompounds
 
@@ -57,6 +54,7 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
+        row_start = 1 if self.wcfg["show_caption"] else 0
         self.drv_width = max(int(self.wcfg["driver_name_width"]), 1)
         self.veh_width = max(int(self.wcfg["vehicle_name_width"]), 1)
         self.brd_width = max(int(self.wcfg["brand_logo_width"]), 1)
@@ -66,6 +64,8 @@ class Realtime(Overlay):
         self.gap_decimals = max(int(self.wcfg["decimal_places_time_gap"]), 0)
         self.nrg_decimals = max(int(self.wcfg["decimal_places_energy_remaining"]), 0)
         self.nrg_width = 3 + self.nrg_decimals + (self.nrg_decimals > 0)
+        self.use_decimals = max(int(self.wcfg["decimal_places_energy_usage"]), 1)
+        self.use_width = 1 + self.use_decimals + (self.use_decimals > 0)
 
         # Max display players
         min_base_veh = 3
@@ -75,7 +75,7 @@ class Realtime(Overlay):
 
         # Empty dataset
         self.pixmap_brandlogo = {}
-        self.row_visible = [False] * self.veh_range
+        self.row_visible = [True] * self.veh_range
 
         # Driver position
         if self.wcfg["show_position"]:
@@ -86,7 +86,8 @@ class Realtime(Overlay):
                 plr_bg_color=self.wcfg["background_color_player_position"],
             )
             self.bars_pos = self.set_rawtext(
-                width=2 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=2 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_pos[0][0],
@@ -96,6 +97,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_pos,
+                row_start=row_start,
                 column=self.wcfg["display_order_position"],
             )
         # Driver position change
@@ -119,7 +121,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_pgl = self.set_rawtext(
-                width=3 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=3 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_pgl[0][0],
@@ -129,6 +132,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_pgl,
+                row_start=row_start,
                 column=self.wcfg["display_order_position_change"],
             )
         # Driver name
@@ -140,17 +144,20 @@ class Realtime(Overlay):
                 plr_bg_color=self.wcfg["background_color_player_driver_name"],
             )
             self.bars_drv = self.set_rawtext(
-                width=self.drv_width * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=self.drv_width * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_drv[0][0],
                 bg_color=self.bar_style_drv[0][1],
+                alignment=self.wcfg["driver_name_text_alignment"],
                 count=self.veh_range,
             )
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_drv,
-                column=self.wcfg["display_order_driver"],
+                row_start=row_start,
+                column=self.wcfg["display_order_driver_name"],
             )
         # Vehicle name
         if self.wcfg["show_vehicle_name"]:
@@ -161,17 +168,20 @@ class Realtime(Overlay):
                 plr_bg_color=self.wcfg["background_color_player_vehicle_name"],
             )
             self.bars_veh = self.set_rawtext(
-                width=self.veh_width * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=self.veh_width * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_veh[0][0],
                 bg_color=self.bar_style_veh[0][1],
+                alignment=self.wcfg["vehicle_name_text_alignment"],
                 count=self.veh_range,
             )
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_veh,
-                column=self.wcfg["display_order_vehicle"],
+                row_start=row_start,
+                column=self.wcfg["display_order_vehicle_name"],
             )
         # Brand logo
         if self.wcfg["show_brand_logo"]:
@@ -188,6 +198,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_brd,
+                row_start=row_start,
                 column=self.wcfg["display_order_brand_logo"],
             )
         # Time gap
@@ -207,20 +218,23 @@ class Realtime(Overlay):
                 ),
             )
             self.nearest_time_gap = (
-                -max(self.wcfg["nearest_time_gap_threshold_behind"], 0),
-                max(self.wcfg["nearest_time_gap_threshold_front"], 0),
+                -max(self.wcfg["nearest_time_gap_threshold_front"], 0),
+                max(self.wcfg["nearest_time_gap_threshold_behind"], 0),
             )
             self.bars_gap = self.set_rawtext(
-                width=self.gap_width * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=self.gap_width * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_gap[0][0],
                 bg_color=self.bar_style_gap[0][1],
+                alignment=self.wcfg["time_gap_text_alignment"],
                 count=self.veh_range,
             )
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_gap,
+                row_start=row_start,
                 column=self.wcfg["display_order_time_gap"],
             )
         # Vehicle laptime
@@ -244,7 +258,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_lpt = self.set_rawtext(
-                width=8 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=8 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_lpt[0][0],
@@ -254,6 +269,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_lpt,
+                row_start=row_start,
                 column=self.wcfg["display_order_laptime"],
             )
         # Vehicle best laptime
@@ -269,7 +285,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_blp = self.set_rawtext(
-                width=8 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=8 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_blp[0][0],
@@ -279,6 +296,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_blp,
+                row_start=row_start,
                 column=self.wcfg["display_order_best_laptime"],
             )
         # Vehicle average laptime
@@ -294,7 +312,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_alp = self.set_rawtext(
-                width=8 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=8 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_alp[0][0],
@@ -304,6 +323,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_alp,
+                row_start=row_start,
                 column=self.wcfg["display_order_average_laptime"],
             )
         # Position in class
@@ -319,7 +339,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_pic = self.set_rawtext(
-                width=2 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=2 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_pic[0][0],
@@ -329,12 +350,14 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_pic,
+                row_start=row_start,
                 column=self.wcfg["display_order_position_in_class"],
             )
         # Vehicle class
         if self.wcfg["show_class"]:
             self.bars_cls = self.set_rawtext(
-                width=self.cls_width * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=self.cls_width * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_class"],
@@ -344,19 +367,26 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_cls,
+                row_start=row_start,
                 column=self.wcfg["display_order_class"],
             )
         # Vehicle in pit
         if self.wcfg["show_pit_status"]:
             self.pit_status_text = (
-                "",
-                self.wcfg["pit_status_text"],
-                self.wcfg["garage_status_text"],
-                self.wcfg["yellow_flag_status_text"],
-                self.wcfg["finish_status_text"],
+                self.wcfg["none_status_text"],  # 0
+                self.wcfg["pit_status_text"],  # 1
+                self.wcfg["garage_status_text"],  # 2
+                self.wcfg["yellow_flag_status_text"],  # 3
+                self.wcfg["finish_status_text"],  # 4
+                self.wcfg["drive_through_status_text"],  # 5
+                self.wcfg["stop_go_status_text"],  # 6
+                self.wcfg["disqualify_status_text"],  # 7
             )
             self.bar_style_pit = (
-                ("#00000000", "#00000000"),
+                (
+                    self.wcfg["font_color_none_status"],
+                    self.wcfg["background_color_none_status"],
+                ),
                 (
                     self.wcfg["font_color_pit"],
                     self.wcfg["background_color_pit"],
@@ -373,18 +403,33 @@ class Realtime(Overlay):
                     self.wcfg["font_color_finish"],
                     self.wcfg["background_color_finish"],
                 ),
+                (
+                    self.wcfg["font_color_drive_through"],
+                    self.wcfg["background_color_drive_through"],
+                ),
+                (
+                    self.wcfg["font_color_stop_go"],
+                    self.wcfg["background_color_stop_go"],
+                ),
+                (
+                    self.wcfg["font_color_disqualify"],
+                    self.wcfg["background_color_disqualify"],
+                ),
             )
             self.bars_pit = self.set_rawtext(
-                width=max(map(len, self.pit_status_text)) * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=max(map(len, self.pit_status_text)) * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_pit[0][0],
                 bg_color=self.bar_style_pit[0][1],
+                alignment=self.wcfg["pit_status_text_alignment"],
                 count=self.veh_range,
             )
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_pit,
+                row_start=row_start,
                 column=self.wcfg["display_order_pit_status"],
             )
         # Tyre compound
@@ -417,6 +462,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_tcp,
+                row_start=row_start,
                 column=self.wcfg["display_order_tyre_compound"],
             )
         # Pitstop count
@@ -440,7 +486,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_psc = self.set_rawtext(
-                width=2 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=2 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_psc[0][0],
@@ -450,6 +497,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_psc,
+                row_start=row_start,
                 column=self.wcfg["display_order_pitstop_count"],
             )
         # Remaining energy
@@ -477,7 +525,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_nrg = self.set_rawtext(
-                width=self.nrg_width * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=self.nrg_width * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_nrg[0][0],
@@ -487,7 +536,39 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_nrg,
+                row_start=row_start,
                 column=self.wcfg["display_order_energy_remaining"],
+            )
+        # Energy usage
+        if self.wcfg["show_energy_usage"]:
+            self.bar_style_use = (
+                (
+                    self.wcfg["font_color_energy_usage"],
+                    self.wcfg["background_color_energy_usage"],
+                ),
+                (
+                    self.wcfg["font_color_player_energy_usage"],
+                    self.wcfg["background_color_player_energy_usage"],
+                ),
+            )
+            min_use_width = self.use_width + (
+                self.wcfg["show_last_energy_usage"]
+                and self.wcfg["show_average_energy_usage"]
+            ) * (1 + self.use_width)
+            self.bars_use = self.set_rawtext(
+                padding=bar_padx,
+                width=min_use_width * font_m.width,
+                fixed_height=font_m.height,
+                offset_y=font_m.voffset,
+                fg_color=self.bar_style_use[0][0],
+                bg_color=self.bar_style_use[0][1],
+                count=self.veh_range,
+            )
+            self.set_grid_layout_table_column(
+                layout=layout,
+                targets=self.bars_use,
+                row_start=row_start,
+                column=self.wcfg["display_order_energy_usage"],
             )
         # Vehicle integrity
         if self.wcfg["show_vehicle_integrity"]:
@@ -510,7 +591,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_dmg = self.set_rawtext(
-                width=1 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=1 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_dmg[0][0],
@@ -520,6 +602,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_dmg,
+                row_start=row_start,
                 column=self.wcfg["display_order_vehicle_integrity"],
             )
         # Incidents
@@ -543,7 +626,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_icd = self.set_rawtext(
-                width=3 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=3 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_icd[0][0],
@@ -553,7 +637,35 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_icd,
+                row_start=row_start,
                 column=self.wcfg["display_order_incidents"],
+            )
+        # Track limits points
+        if self.wcfg["show_track_limits_points"]:
+            self.bar_style_tlp = (
+                (
+                    self.wcfg["font_color_track_limits_points"],
+                    self.wcfg["background_color_track_limits_points"],
+                ),
+                (
+                    self.wcfg["font_color_player_track_limits_points"],
+                    self.wcfg["background_color_player_track_limits_points"],
+                ),
+            )
+            self.bars_tlp = self.set_rawtext(
+                padding=bar_padx,
+                width=4 * font_m.width,
+                fixed_height=font_m.height,
+                offset_y=font_m.voffset,
+                fg_color=self.bar_style_tlp[0][0],
+                bg_color=self.bar_style_tlp[0][1],
+                count=self.veh_range,
+            )
+            self.set_grid_layout_table_column(
+                layout=layout,
+                targets=self.bars_tlp,
+                row_start=row_start,
+                column=self.wcfg["display_order_track_limits_points"],
             )
         # Stint laps
         if self.wcfg["show_stint_laps"]:
@@ -568,7 +680,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_stl = self.set_rawtext(
-                width=5 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=5 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_stl[0][0],
@@ -578,6 +691,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_stl,
+                row_start=row_start,
                 column=self.wcfg["display_order_stint_laps"],
             )
         # Speed trap
@@ -594,7 +708,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_spd = self.set_rawtext(
-                width=5 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=5 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_spd[0][0],
@@ -604,6 +719,7 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_spd,
+                row_start=row_start,
                 column=self.wcfg["display_order_speed_trap"],
             )
         # Lift and coast time
@@ -623,7 +739,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bars_lic = self.set_rawtext(
-                width=4 * font_m.width + bar_padx,
+                padding=bar_padx,
+                width=4 * font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_lic[0][0],
@@ -633,20 +750,51 @@ class Realtime(Overlay):
             self.set_grid_layout_table_column(
                 layout=layout,
                 targets=self.bars_lic,
+                row_start=row_start,
                 column=self.wcfg["display_order_lift_and_coast_time"],
             )
 
+        # Caption
+        if self.wcfg["show_caption"]:
+            # Hide pit status caption if none status background is transparent
+            if is_transparent_color(self.wcfg["background_color_none_status"]):
+                transparent_columns = ("pit_status",)
+            else:
+                transparent_columns = ()
+            self.set_grid_layout_table_caption(
+                layout=layout,
+                padding=bar_padx,
+                transparent_columns=transparent_columns,
+            )
+
+        # Last data
+        self.last_veh_total = -1
+        self.dataset_ahead = []
+        self.dataset_behind = []
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        player_idx = minfo.vehicles.playerIndex
+        _option = self.wcfg  # reduce lookup in loop
+
+        veh_total = minfo.vehicles.totalVehicles
+        if self.last_veh_total != veh_total:
+            self.last_veh_total = veh_total
+            active_dataset = minfo.vehicles.activeDataSet
+            self.dataset_ahead[:] = active_dataset
+            self.dataset_behind[:] = active_dataset
+
+        self.dataset_ahead.sort(key=sort_by_relative_ahead)
+        self.dataset_behind.sort(key=sort_by_relative_behind)
+
+        veh_dataset = minfo.vehicles.dataSet
         relative_list = relative_data(
-            minfo.relative.relativeAhead,
-            minfo.relative.relativeBehind,
-            player_idx,
+            self.dataset_ahead,
+            self.dataset_behind,
+            minfo.vehicles.playerIndex,
             self.max_veh_front,
             self.max_veh_behind,
         )
-        plr_veh_info = minfo.vehicles.dataSet[player_idx]
+        plr_data = minfo.vehicles.playerData
         in_race = api.read.session.in_race()
 
         # Relative update
@@ -662,92 +810,117 @@ class Realtime(Overlay):
                 state = 0
 
             # Get vehicle dataset
-            veh_info = minfo.vehicles.dataSet[rel_idx]
+            data = veh_dataset[rel_idx]
             # Highlighted player
-            hi_player = self.wcfg["show_player_highlighted"] and veh_info.isPlayer
+            hi_player = _option["show_player_highlighted"] and data.isPlayer
             # Check whether is lapped
-            is_lapped = veh_info.isLapped
+            is_lapped = data.isLapped
             # Driver position
-            if self.wcfg["show_position"]:
-                self.update_pos(self.bars_pos[idx], veh_info.positionOverall, is_lapped, hi_player, state)
+            if _option["show_position"]:
+                self.update_pos(self.bars_pos[idx], data.positionOverall, is_lapped, hi_player, state)
             # Driver position change
-            if self.wcfg["show_position_change"]:
-                if self.wcfg["show_position_change_in_class"]:
-                    pos_diff = veh_info.qualifyInClass - veh_info.positionInClass
+            if _option["show_position_change"]:
+                if _option["show_position_change_in_class"]:
+                    pos_diff = data.qualifyInClass - data.positionInClass
                 else:
-                    pos_diff = veh_info.qualifyOverall - veh_info.positionOverall
+                    pos_diff = data.qualifyOverall - data.positionOverall
                 self.update_pgl(self.bars_pgl[idx], pos_diff, hi_player, state)
             # Driver name
-            if self.wcfg["show_driver_name"]:
-                self.update_drv(self.bars_drv[idx], veh_info.driverName, is_lapped, hi_player, state)
+            if _option["show_driver_name"]:
+                self.update_drv(self.bars_drv[idx], data.driverName, is_lapped, hi_player, state)
             # Vehicle name
-            if self.wcfg["show_vehicle_name"]:
-                if self.wcfg["show_vehicle_brand_as_name"]:
-                    vehicle_name = veh_info.vehicleBrand
+            if _option["show_vehicle_name"]:
+                if _option["show_vehicle_brand_as_name"]:
+                    vehicle_name = data.brandName
                 else:
-                    vehicle_name = veh_info.vehicleName
+                    vehicle_name = data.vehicleName
                 self.update_veh(self.bars_veh[idx], vehicle_name, is_lapped, hi_player, state)
             # Brand logo
-            if self.wcfg["show_brand_logo"]:
-                self.update_brd(self.bars_brd[idx], veh_info.vehicleBrand, hi_player, state)
+            if _option["show_brand_logo"]:
+                self.update_brd(self.bars_brd[idx], data.brandName, hi_player, state)
             # Time gap
-            if self.wcfg["show_time_gap"]:
+            if _option["show_time_gap"]:
                 self.update_gap(self.bars_gap[idx], rel_time_gap, hi_player, state)
             # Vehicle laptime
-            if self.wcfg["show_laptime"]:
-                if self.wcfg["show_pitstop_duration_while_requested_pitstop"] and plr_veh_info.pitRequested:
-                    laptime = self.set_pittime(veh_info.inPit, veh_info.pitTimer.elapsed)
-                    is_class_best = False
-                elif veh_info.pitTimer.pitting:
-                    laptime = self.set_pittime(veh_info.inPit, veh_info.pitTimer.elapsed)
+            if _option["show_laptime"]:
+                if (
+                    _option["show_pitstop_duration_while_requested_pitstop"]
+                    and plr_data.pitRequested
+                    or data.pitTimer.pitting
+                ):
+                    laptime = self.set_pittime(data.inPit, data.pitTimer.elapsed)
                     is_class_best = False
                 else:
-                    laptime = self.set_laptime(veh_info.lastLapTime, veh_info.isValidLap)
-                    is_class_best = veh_info.isClassFastestLastLap
+                    laptime = self.set_laptime(data.lastLapTime, data.isValidLap)
+                    is_class_best = data.isClassFastestLastLap
                 self.update_lpt(self.bars_lpt[idx], laptime, is_class_best, hi_player, state)
             # Vehicle best laptime
-            if self.wcfg["show_best_laptime"]:
-                if in_race and self.wcfg["show_best_laptime_from_recent_laps_in_race"]:
-                    laptime = veh_info.lapTimeHistory.best
+            if _option["show_best_laptime"]:
+                if in_race and _option["show_best_laptime_from_recent_laps_in_race"]:
+                    laptime = data.lapTimeHistory.best
                 else:
-                    laptime = veh_info.bestLapTime
+                    laptime = data.bestLapTime
                 self.update_blp(self.bars_blp[idx], laptime, hi_player, state)
             # Vehicle average laptime
-            if self.wcfg["show_average_laptime"]:
-                self.update_alp(self.bars_alp[idx], veh_info.lapTimeHistory.average, hi_player, state)
+            if _option["show_average_laptime"]:
+                self.update_alp(self.bars_alp[idx], data.lapTimeHistory.average, hi_player, state)
             # Position in class
-            if self.wcfg["show_position_in_class"]:
-                self.update_pic(self.bars_pic[idx], veh_info.positionInClass, veh_info.vehicleClass, hi_player, state)
+            if _option["show_position_in_class"]:
+                self.update_pic(self.bars_pic[idx], data.positionInClass, data.vehicleClass, hi_player, state)
             # Vehicle class
-            if self.wcfg["show_class"]:
-                self.update_cls(self.bars_cls[idx], veh_info.vehicleClass, state)
+            if _option["show_class"]:
+                self.update_cls(self.bars_cls[idx], data.vehicleClass, state)
             # Vehicle in pit
-            if self.wcfg["show_pit_status"]:
-                self.update_pit(self.bars_pit[idx], veh_info.inPit, veh_info.isYellow, veh_info.isFinished, state)
+            if _option["show_pit_status"]:
+                if data.finishState > 0:
+                    if data.finishState == 3:  # disqualify
+                        status_index = -1
+                    else:  # finished
+                        status_index = 4
+                elif data.penaltyType > 0:  # penalty
+                    status_index = 4 + data.penaltyType
+                elif data.inPit > 0:  # pit & garage
+                    status_index = data.inPit
+                elif data.isYellow:  # yellow flag
+                    status_index = 3
+                else:  # none
+                    status_index = 0
+                self.update_pit(self.bars_pit[idx], status_index, state)
             # Tyre compound
-            if self.wcfg["show_tyre_compound"]:
-                self.update_tcp(self.bars_tcp[idx], veh_info.tireCompoundName, hi_player, state)
+            if _option["show_tyre_compound"]:
+                self.update_tcp(self.bars_tcp[idx], data.tireCompoundName, hi_player, state)
             # Pitstop count
-            if self.wcfg["show_pitstop_count"]:
-                self.update_psc(self.bars_psc[idx], veh_info.numPitStops, veh_info.pitRequested, hi_player, state)
+            if _option["show_pitstop_count"]:
+                self.update_psc(self.bars_psc[idx], data.numPitStops, data.pitRequested, hi_player, state)
             # Remaining energy
-            if self.wcfg["show_energy_remaining"]:
-                self.update_nrg(self.bars_nrg[idx], veh_info.energyRemaining, hi_player, state)
+            if _option["show_energy_remaining"]:
+                self.update_nrg(self.bars_nrg[idx], data.energyRemaining, hi_player, state)
+            # Energy usage
+            if _option["show_energy_usage"]:
+                nrg_usage = data.energyHistory.used
+                nrg_average = data.energyHistory.average
+                if nrg_usage <= 0:
+                    nrg_usage = data.fuelHistory.used
+                    nrg_average = data.fuelHistory.average
+                self.update_use(self.bars_use[idx], nrg_usage, nrg_average, hi_player, state)
             # Vehicle integrity
-            if self.wcfg["show_vehicle_integrity"]:
-                self.update_dmg(self.bars_dmg[idx], veh_info.vehicleIntegrity, hi_player, state)
+            if _option["show_vehicle_integrity"]:
+                self.update_dmg(self.bars_dmg[idx], data.vehicleIntegrity, hi_player, state)
             # Incidents
-            if self.wcfg["show_incidents"]:
-                self.update_icd(self.bars_icd[idx], veh_info.incidents, hi_player, state)
+            if _option["show_incidents"]:
+                self.update_icd(self.bars_icd[idx], data.incidents, hi_player, state)
+            # Track limits points
+            if _option["show_track_limits_points"]:
+                self.update_tlp(self.bars_tlp[idx], data.trackLimitsPoints, hi_player, state)
             # Stint laps
-            if self.wcfg["show_stint_laps"]:
-                self.update_stl(self.bars_stl[idx], veh_info.currentStintLaps, veh_info.estimatedStintLaps, hi_player, state)
+            if _option["show_stint_laps"]:
+                self.update_stl(self.bars_stl[idx], data.currentStintLaps, data.estimatedStintLaps, hi_player, state)
             # Speed trap
-            if self.wcfg["show_speed_trap"]:
-                self.update_spd(self.bars_spd[idx], veh_info.speedTrap.speed, hi_player, state)
+            if _option["show_speed_trap"]:
+                self.update_spd(self.bars_spd[idx], data.speedTrap.speed, hi_player, state)
             # Lift and coast time
-            if self.wcfg["show_lift_and_coast_time"]:
-                self.update_lic(self.bars_lic[idx], veh_info.licoTimer.elapsed, veh_info.licoTimer.idling, hi_player, state)
+            if _option["show_lift_and_coast_time"]:
+                self.update_lic(self.bars_lic[idx], data.licoTimer.elapsed, data.licoTimer.idling, hi_player, state)
 
     # GUI update methods
     def update_pos(self, target, *data):
@@ -809,10 +982,7 @@ class Realtime(Overlay):
                     text = data[0]
                 if self.wcfg["driver_name_uppercase"]:
                     text = text.upper()
-                if self.wcfg["driver_name_align_center"]:
-                    text = f"{text:.{self.drv_width}}"
-                else:
-                    text = f"{text:<{self.drv_width}.{self.drv_width}}"
+                text = f"{text:.{self.drv_width}}"
             else:
                 text = ""
             target.text = text
@@ -833,10 +1003,7 @@ class Realtime(Overlay):
                 text = data[0]
                 if self.wcfg["vehicle_name_uppercase"]:
                     text = text.upper()
-                if self.wcfg["vehicle_name_align_center"]:
-                    text = f"{text:.{self.veh_width}}"
-                else:
-                    text = f"{text:<{self.veh_width}.{self.veh_width}}"
+                text = f"{text:.{self.veh_width}}"
             else:
                 text = ""
             target.text = text
@@ -867,11 +1034,9 @@ class Realtime(Overlay):
                 color_index = 0
             if data[-1]:
                 if self.wcfg["show_time_gap_sign"] and data[0] != 0:
-                    text = f"{-data[0]:+.{self.gap_decimals}f}"[:self.gap_width].strip(".")
+                    text = f"{data[0]:+.{self.gap_decimals}f}"[:self.gap_width].strip(".")
                 else:
                     text = f"{abs(data[0]):.{self.gap_decimals}f}"[:self.gap_width].strip(".")
-                if not self.wcfg["time_gap_align_center"]:
-                    text = f"{text:>{self.gap_width}}"
             else:
                 text = ""
             target.text = text
@@ -949,12 +1114,7 @@ class Realtime(Overlay):
         """Vehicle in pit"""
         if target.last != data:
             target.last = data
-            if data[2]:  # finish flag
-                index = 4
-            else:
-                index = data[0]
-                if data[1] and index == 0:  # show yellow flag outside pits
-                    index = 3
+            index = data[0]
             target.text = self.pit_status_text[index]
             target.fg, target.bg = self.bar_style_pit[index]
             target.update()
@@ -1009,7 +1169,7 @@ class Realtime(Overlay):
             if not data[-1]:
                 text = ""
             elif data[0] == 0:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             else:
                 text = f"{data[0]}"
             target.text = text
@@ -1034,11 +1194,37 @@ class Realtime(Overlay):
             if not data[-1]:
                 text = ""
             elif ve <= -1:
-                text = "-" * self.nrg_width
+                text = DATA.TEXT_PLACEHOLDER * self.nrg_width
             else:
                 text = f"{ve:0{self.nrg_width}.{self.nrg_decimals}%}"[:self.nrg_width]
             target.text = text
             target.fg, target.bg = self.bar_style_nrg[color_index]
+            target.update()
+
+    def update_use(self, target, *data):
+        """Energy usage"""
+        if target.last != data:
+            target.last = data
+            text = ""
+            if data[-1]:
+                if self.wcfg["show_last_energy_usage"] or not self.wcfg["show_average_energy_usage"]:
+                    used = data[0]
+                    if used <= 0:
+                        text = DATA.TEXT_PLACEHOLDER * self.use_width
+                    else:
+                        text = f"{used * 100:.{self.use_decimals}f}"[:self.use_width]
+                if self.wcfg["show_average_energy_usage"]:
+                    average = data[1]
+                    if average <= 0:
+                        text_avg = DATA.TEXT_PLACEHOLDER * self.use_width
+                    else:
+                        text_avg = f"{average * 100:.{self.use_decimals}f}"[:self.use_width]
+                    if text:
+                        text = f"{text}/{text_avg}"
+                    else:
+                        text = text_avg
+            target.text = text
+            target.fg, target.bg = self.bar_style_use[data[2]]
             target.update()
 
     def update_dmg(self, target, *data):
@@ -1057,7 +1243,7 @@ class Realtime(Overlay):
             if not data[-1]:
                 text = ""
             elif hp >= 10:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             else:
                 if hp < 0:
                     hp = 0
@@ -1081,12 +1267,22 @@ class Realtime(Overlay):
                 color_index = 0
             if not data[-1]:
                 text = ""
-            elif score <= 0:
-                text = "--"
             else:
                 text = f"x{score:d}"
             target.text = text
             target.fg, target.bg = self.bar_style_icd[color_index]
+            target.update()
+
+    def update_tlp(self, target, *data):
+        """Track limits points"""
+        if target.last != data:
+            target.last = data
+            if not data[-1]:
+                text = ""
+            else:
+                text = f"{data[0]:.2f}"[:4]
+            target.text = text
+            target.fg, target.bg = self.bar_style_tlp[data[1]]
             target.update()
 
     def update_stl(self, target, *data):
@@ -1185,17 +1381,17 @@ class Realtime(Overlay):
 
     def set_laptime(self, laptime, valid: bool = True):
         """Set lap time"""
-        if 0 < laptime < MAX_SECONDS:
+        if 0 < laptime < DATA.MAX_SECONDS:
             if valid:
                 return calc.sec2laptime_full(laptime)
             return f"*{calc.sec2laptime_full(laptime)}"
-        return TEXT_NOLAPTIME
+        return DATA.TEXT_NOLAPTIME
 
     def set_pittime(self, inpit, pit_time):
         """Set lap time"""
-        if 0 < pit_time < MAX_SECONDS:
+        if 0 < pit_time < DATA.MAX_SECONDS:
             return f"{'PIT' if inpit else 'OUT'}{pit_time:>5.1f}"
-        return TEXT_NOLAPTIME
+        return DATA.TEXT_NOLAPTIME
 
 
 def lap_difference_index(is_lapped, offset=2):
@@ -1207,28 +1403,45 @@ def lap_difference_index(is_lapped, offset=2):
     return (is_lapped < 0) + (is_lapped > 0) * 2 + offset
 
 
-def relative_data(ahead_list: list, behind_list: list, player_index: int, max_ahead: int, max_behind: int):
+def relative_data(
+    dataset_ahead: list[VehicleData],
+    dataset_behind: list[VehicleData],
+    player_index: int,
+    max_ahead: int,
+    max_behind: int,
+    max_time: float = DATA.MAX_SECONDS,
+    data_none: tuple[float, int] = DATA.RELATIVE_NA,
+):
     """Generate relative time & index data"""
     # Yield ahead data
-    ahead_count = len(ahead_list)
-    while ahead_count < max_ahead:
-        ahead_count += 1
-        yield REL_TIME_DEFAULT
-    for ahead_data in ahead_list:
-        if ahead_count > max_ahead:
-            ahead_count -= 1
-        else:
-            yield ahead_data
+    ahead_count = len(dataset_ahead) - max_ahead
+    for idx in range(ahead_count, ahead_count + max_ahead):
+        if idx >= 0:
+            ahead_data = dataset_ahead[idx]
+            ahead_gap = ahead_data.relativeGapAhead
+            if ahead_gap > -max_time:  # check if gap time is valid
+                yield (ahead_gap, ahead_data.index)
+                continue
+        yield data_none
     # Yield player data
     yield (0.0, player_index)
     # Yield behind data
-    behind_count = 0
-    for behind_data in behind_list:
-        if behind_count < max_behind:
-            behind_count += 1
-            yield behind_data
-        else:
-            break
-    while behind_count < max_behind:
-        behind_count += 1
-        yield REL_TIME_DEFAULT
+    behind_count = len(dataset_behind)
+    for idx in range(max_behind):
+        if idx < behind_count:
+            behind_data = dataset_behind[idx]
+            behind_gap = behind_data.relativeGapBehind
+            if behind_gap < max_time:  # check if gap time is valid
+                yield (behind_gap, behind_data.index)
+                continue
+        yield data_none
+
+
+def sort_by_relative_ahead(data: VehicleData) -> float:
+    """Sort by relative ahead"""
+    return data.relativeGapAhead
+
+
+def sort_by_relative_behind(data: VehicleData) -> float:
+    """Sort by relative behind"""
+    return data.relativeGapBehind

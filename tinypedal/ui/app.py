@@ -36,14 +36,12 @@ from PySide2.QtWidgets import (
     QWidget,
 )
 
-from .. import app_signal, loader
-from ..api_control import api
-from ..const_app import APP_NAME, VERSION
-from ..const_file import ConfigType
-from ..module_control import mctrl, wctrl
-from ..setting import cfg
-from . import set_style_palette, set_style_window
-from ._common import DialogSingleton, UIScaler
+import tinypedal
+
+from .. import api, app_signal, cfg, mctrl, wctrl
+from ..constant import APP, CONFIG
+from ._common import BaseDialog, UIScaler
+from ._style import set_style_palette, set_style_window
 from .hotkey_view import HotkeyList
 from .menu import APIMenu, ConfigMenu, HelpMenu, OverlayMenu, ToolsMenu, WindowMenu
 from .module_view import ModuleList
@@ -134,6 +132,7 @@ class StatusButtonBar(QStatusBar):
     def __init__(self, parent):
         super().__init__(parent)
         self.button_api = QPushButton("")
+        self.button_api.setObjectName("statusBarButtonAPI")
         self.button_api.clicked.connect(self.refresh)
         self.button_api.setToolTip("Config Telemetry API")
 
@@ -194,8 +193,8 @@ class StatusButtonBar(QStatusBar):
             return
 
         cfg.application["enable_high_dpi_scaling"] = not cfg.application["enable_high_dpi_scaling"]
-        cfg.save(config_type=ConfigType.CONFIG)
-        loader.restart()
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
+        app_signal.restart.emit(True)
 
     def toggle_color_theme(self):
         """Toggle color theme"""
@@ -203,7 +202,7 @@ class StatusButtonBar(QStatusBar):
             cfg.application["window_color_theme"] = "Light"
         else:
             cfg.application["window_color_theme"] = "Dark"
-        cfg.save(config_type=ConfigType.CONFIG)
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
         app_signal.refresh.emit(True)
 
 
@@ -212,9 +211,13 @@ class AppWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} v{VERSION}")
+        self.setWindowTitle(f"{APP.TINYPEDAL} v{APP.VERSION}")
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.last_style = None
+        self.closing = False
+
+        # Load style before UI
+        self.refresh()
 
         # Status bar
         self.setStatusBar(StatusButtonBar(self))
@@ -231,9 +234,6 @@ class AppWindow(QMainWindow):
         # Window state
         self.set_window_state()
         self.__connect_signal()
-
-        # Refresh GUI
-        app_signal.refresh.emit(True)
 
     @Slot(bool)  # type: ignore[operator]
     def refresh(self):
@@ -360,7 +360,7 @@ class AppWindow(QMainWindow):
                 save_changes = True
 
         if save_changes:
-            cfg.save(0, config_type=ConfigType.CONFIG)
+            cfg.save(0, config_type=CONFIG.TYPE_CONFIG)
 
     def show_app(self):
         """Show app window"""
@@ -369,12 +369,21 @@ class AppWindow(QMainWindow):
         app_signal.refresh.emit(True)
 
     @Slot(bool)  # type: ignore[operator]
+    def restart_app(self):
+        """Restart app"""
+        self.save_window_state()
+        tinypedal.restart()
+
+    @Slot(bool)  # type: ignore[operator]
     def quit_app(self):
         """Quit manager"""
-        loader.close()  # must close this first
+        if self.closing:  # one-time quit only
+            return
+        self.closing = True
         self.save_window_state()
         self.__break_signal()
         self.findChild(QSystemTrayIcon).hide()  # workaround tray icon not removed after exited
+        tinypedal.close()
         QApplication.quit()
 
     def closeEvent(self, event):
@@ -386,15 +395,12 @@ class AppWindow(QMainWindow):
             self.quit_app()
 
     @Slot(bool)  # type: ignore[operator]
-    def reload_preset(self, check_singleton: bool):
+    def reload_preset(self, reload_preset: bool):
         """Reload current preset"""
-        # Cancel loading while any config dialog opened
-        if check_singleton and DialogSingleton.is_opened(ConfigType.CONFIG):
-            msg_text = "Cannot load preset while Config dialog is opened."
-            QMessageBox.warning(self, "Error", msg_text)
-            cfg.set_next_to_load("")
-            return
-        loader.reload(reload_preset=True)
+        # Close any config dialog first
+        for _widget in self.findChildren(BaseDialog):
+            _widget.interrupt()
+        tinypedal.reload(reload_preset)
         app_signal.refresh.emit(True)
 
     @Slot(object)  # type: ignore[operator]
@@ -406,6 +412,7 @@ class AppWindow(QMainWindow):
         """Connect signal"""
         app_signal.hotkey.connect(self.hotkey_command)
         app_signal.refresh.connect(self.refresh)
+        app_signal.restart.connect(self.restart_app)
         app_signal.quitapp.connect(self.quit_app)
         app_signal.reload.connect(self.reload_preset)
         logger.info("GUI: connect signals")
@@ -415,6 +422,7 @@ class AppWindow(QMainWindow):
         app_signal.hotkey.disconnect()
         app_signal.updates.disconnect()
         app_signal.refresh.disconnect()
+        app_signal.restart.disconnect()
         app_signal.quitapp.disconnect()
         app_signal.reload.disconnect()
         logger.info("GUI: disconnect signals")

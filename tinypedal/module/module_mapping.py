@@ -20,14 +20,14 @@
 Mapping module
 """
 
+from .. import api, minfo, realtime_state
 from .. import calculation as calc
-from .. import realtime_state
-from ..api_control import api
-from ..const_file import FileExt
-from ..module_info import MapCoords, MappingInfo, minfo
+from ..constant import DATA, FILE
+from ..decorator import generator_init
+from ..module_info import MapCoords, MappingInfo
 from ..userfile.track_info import load_track_info, save_track_info
 from ..userfile.track_map import load_track_map_file, save_track_map_file
-from ..validator import file_last_modified, generator_init
+from ..validator import file_last_modified
 from ._base import DataModule
 
 
@@ -35,9 +35,6 @@ class Realtime(DataModule):
     """Mapping data"""
 
     __slots__ = ()
-
-    def __init__(self, config, module_name):
-        super().__init__(config, module_name)
 
     def update_data(self):
         """Update module data"""
@@ -49,6 +46,7 @@ class Realtime(DataModule):
         gen_record_track_map = record_track_map(
             output=minfo.mapping,
             filepath=self.cfg.path.track_map,
+            min_node_distance=self.mcfg["minimum_node_distance"],
         )
         gen_record_track_info = record_track_info(
             output=minfo.mapping,
@@ -124,6 +122,7 @@ def record_track_info(output: MappingInfo):
             pit_exit = load_track_info(track_name, "pit_exit")
             pit_speed = load_track_info(track_name, "pit_speed")
             output.speedTrapPosition = load_track_info(track_name, "speed_trap")
+            output.orientation = load_track_info(track_name, "orientation")
             output.sunlightPhases = set_sunlight_phase(
                 load_track_info(track_name, "sunrise"),
                 load_track_info(track_name, "sunset"),
@@ -173,22 +172,14 @@ def record_track_info(output: MappingInfo):
 
 
 @generator_init
-def record_track_map(output: MappingInfo, filepath: str):
+def record_track_map(output: MappingInfo, filepath: str, min_node_distance: float):
     """Record map data"""
     last_reset = None  # reset check
-    delayed_save = False
 
-    recording = False
-    validating = False
-    last_sector_idx = -1
-    last_lap_stime = -1.0  # last lap start time
-    pos_last = 0.0  # last checked player vehicle position
     # File info
-    map_exist = False
     last_modified = 0.0
     filename = ""
     # Map data
-    output_data = MapCoords()
     recorder_data = MapCoords()
     temp_data = MapCoords()
 
@@ -197,21 +188,6 @@ def record_track_map(output: MappingInfo, filepath: str):
 
         # Reset
         if last_reset != reset:
-            # Save data
-            if delayed_save:
-                save_track_map_file(
-                    filepath=filepath,
-                    filename=filename,
-                    view_box=calc.svg_view_box(output_data.coords, 20),
-                    raw_coords=output_data.coords,
-                    raw_dists=output_data.dists,
-                    sector_index=output_data.sectors,
-                    decimals=4,
-                )
-                output_data.clear()
-                delayed_save = False
-                #logger.info("map saved, stopped map recording")
-
             # Delay reset until driving
             if not realtime_state.active:
                 continue
@@ -222,7 +198,7 @@ def record_track_map(output: MappingInfo, filepath: str):
             modified = file_last_modified(
                 filepath=filepath,
                 filename=filename,
-                extension=FileExt.SVG,
+                extension=FILE.EXT_SVG,
             )
             map_exist = (last_modified == modified > 0)
             last_modified = modified
@@ -230,14 +206,14 @@ def record_track_map(output: MappingInfo, filepath: str):
                 continue
 
             # Load map file
-            output_data.coords, output_data.dists, output_data.sectors = load_track_map_file(
+            temp_data.coords, temp_data.dists, temp_data.sectors = load_track_map_file(
                 filepath=filepath,
                 filename=filename,
             )
-            if output_data.is_valid():
-                output.coordinates = output_data.coords
-                output.elevations = output_data.dists
-                output.sectors = output_data.sectors
+            if temp_data.is_valid():
+                output.coordinates = temp_data.coords
+                output.elevations = temp_data.dists
+                output.sectors = temp_data.sectors
                 output.lastModified = last_modified
                 map_exist = True
                 #logger.info("map exist")
@@ -247,80 +223,86 @@ def record_track_map(output: MappingInfo, filepath: str):
                 #logger.info("map not exist")
 
             # Reset to defaults
-            output_data.clear()
             temp_data.clear()
             recorder_data.clear()
             recording = False
-            validating = False
+            validating = 0
             last_sector_idx = -1
-            last_lap_stime = -1.0
-            pos_last = 0.0
+            last_lap_number = DATA.MAX_LAPS
+            pos_recorded = 0.0  # last recorded vehicle position
+            pos_last = 0.0  # last checked player vehicle position
+            is_pit_lap = 0  # whether pit in or pit out lap
 
         # Recording map data
         if map_exist:
             continue
 
         # Lap start & finish detection
-        # Init reset
-        lap_stime = api.read.timing.start()
-        if last_lap_stime == -1:
-            recorder_data.reset()
-            last_lap_stime = lap_stime
-
-        # New lap
-        if lap_stime > last_lap_stime:
-            # End recording
-            if recorder_data.coords:
+        is_pit_lap |= api.read.vehicle.in_pits()
+        lap_number = api.read.lap.completed()
+        if last_lap_number != lap_number and 0 < api.read.lap.distance() < 200:
+            if not is_pit_lap and last_lap_number < lap_number and recorder_data.is_valid():
                 temp_data.coords = tuple(recorder_data.coords)
                 temp_data.dists = tuple(recorder_data.dists)
                 temp_data.sectors = tuple(recorder_data.sectors)
-                validating = True
-            # Reset
-            recorder_data.reset()
-            last_lap_stime = lap_stime
-            pos_last = 0
+                validating = api.read.timing.elapsed()
+            recorder_data.new()
+            pos_last = pos_recorded = 0
             recording = True
+            is_pit_lap = 0
+            last_lap_number = lap_number
             #logger.info("map recording")
 
         # Validate map data after crossing finish line
         if validating:
-            laptime_curr = api.read.timing.current_laptime()
-            # Save data
-            if 1 < laptime_curr <= 8 and api.read.timing.last_laptime() > 0:
-                output_data.coords = temp_data.coords
-                output_data.dists = temp_data.dists
-                output_data.sectors = temp_data.sectors
+            timer = api.read.timing.elapsed() - validating
+            if timer > 8:  # switch off after 8s
+                temp_data.clear()
+                validating = 0
+            elif timer > 1 and api.read.timing.is_last_valid():
+                # Save data
+                save_track_map_file(
+                    filepath=filepath,
+                    filename=filename,
+                    view_box=calc.svg_view_box(temp_data.coords, 20),
+                    raw_coords=temp_data.coords,
+                    raw_dists=temp_data.dists,
+                    sector_index=temp_data.sectors,
+                    decimals=4,
+                )
+                #logger.info("map saved, stopped map recording")
                 # Reset
                 temp_data.clear()
                 recorder_data.clear()
                 recording = False
-                validating = False
-                delayed_save = True
+                validating = 0
                 last_reset = None  # load recorded map in next loop
-            # Switch off validating after 8s
-            elif 8 < laptime_curr < 10:
-                temp_data.clear()
-                validating = False
 
         # Record map coords
         if recording:
-            # Record sector index
-            sector_idx = api.read.lap.sector_index()
-            if last_sector_idx != sector_idx:
-                if sector_idx == 1:
-                    recorder_data.sectors[0] = len(recorder_data.coords) - 1
-                elif sector_idx == 2:
-                    recorder_data.sectors[1] = len(recorder_data.coords) - 1
-                last_sector_idx = sector_idx
-
-            # Record driving path
-            # Update if position value is different & positive
             pos_curr = api.read.lap.distance()
+
+            # Update if position value is different & positive
             if 0 <= pos_curr != pos_last:
-                if pos_curr > pos_last:  # position further
+                # Record sector index
+                sector_idx = api.read.lap.sector_index()
+                if last_sector_idx != sector_idx:
+                    if sector_idx == 1:
+                        recorder_data.sectors[0] = len(recorder_data.coords) - 1
+                    elif sector_idx == 2:
+                        recorder_data.sectors[1] = len(recorder_data.coords) - 1
+                    last_sector_idx = sector_idx
+
+                # Record driving path
+                delta_pos = pos_curr - pos_recorded
+                if delta_pos > 100:  # detect teleporting
+                    recording = False
+                    recorder_data.clear()
+                elif delta_pos >= min_node_distance:
                     pos_x = api.read.vehicle.position_longitudinal()
                     pos_y = api.read.vehicle.position_lateral()
                     pos_z = api.read.vehicle.position_vertical()
                     recorder_data.coords.append((pos_x, pos_y))
                     recorder_data.dists.append((pos_curr, pos_z))
+                    pos_recorded = pos_curr
                 pos_last = pos_curr  # reset last position

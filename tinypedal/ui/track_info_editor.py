@@ -34,17 +34,11 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..api_control import api
-from ..const_file import ConfigType
-from ..setting import cfg, copy_setting
-from ..template.setting_tracks import TRACKINFO_DEFAULT
-from ._common import (
-    BaseEditor,
-    ClockTableItem,
-    CompactButton,
-    FloatTableItem,
-    UIScaler,
-)
+from .. import api, cfg
+from ..constant import CONFIG
+from ..setting.default_tracks import TRACKINFO_DEFAULT
+from ..userfile.json_setting import copy_setting
+from ._common import BaseEditor, ClockTableItem, CompactButton, FloatTableItem, UIScaler
 
 HEADER_TRACKS = (
     "Track name",
@@ -52,6 +46,7 @@ HEADER_TRACKS = (
     "Pit exit (m)",
     "Pit speed (m/s)",
     "Speed trap (m)",
+    "Orient (°)",
     "Sunrise",
     "Sunset",
 )
@@ -65,7 +60,7 @@ class TrackInfoEditor(BaseEditor):
     def __init__(self, parent):
         super().__init__(parent)
         self.set_utility_title("Track Info Editor")
-        self.setMinimumSize(UIScaler.size(64), UIScaler.size(35))
+        self.setMinimumSize(UIScaler.size(68), UIScaler.size(35))
 
         self.tracks_temp = copy_setting(cfg.user.tracks)
 
@@ -134,10 +129,8 @@ class TrackInfoEditor(BaseEditor):
     def refresh_table(self):
         """Refresh tracks list"""
         self.table_tracks.setRowCount(0)
-        row_index = 0
-        for track_name, track_data in self.tracks_temp.items():
+        for row_index, (track_name, track_data) in enumerate(self.tracks_temp.items()):
             self.add_track_entry(row_index, track_name, track_data)
-            row_index += 1
 
     def add_track(self):
         """Add new track"""
@@ -174,7 +167,7 @@ class TrackInfoEditor(BaseEditor):
 
     def delete_track(self):
         """Delete track entry"""
-        selected_rows = set(data.row() for data in self.table_tracks.selectedIndexes())
+        selected_rows = {data.row() for data in self.table_tracks.selectedIndexes()}
         if not selected_rows:
             QMessageBox.warning(self, "Error", "No data selected.")
             return
@@ -283,7 +276,7 @@ class TrackInfoEditor(BaseEditor):
         """Save setting"""
         self.update_tracks_temp()
         cfg.user.tracks = copy_setting(self.tracks_temp)
-        cfg.save(0, config_type=ConfigType.TRACKS)
+        cfg.save(0, config_type=CONFIG.TYPE_TRACKS)
         while cfg.is_saving:  # wait saving finish
             time.sleep(0.01)
         self.reloading()

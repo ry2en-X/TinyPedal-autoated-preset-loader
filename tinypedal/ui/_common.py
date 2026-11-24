@@ -23,7 +23,7 @@ Common
 from __future__ import annotations
 
 import re
-from typing import Callable
+from typing import Callable, ClassVar
 
 from PySide2.QtCore import QRegularExpression, Qt
 from PySide2.QtGui import (
@@ -50,9 +50,9 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..const_app import APP_NAME
+from ..constant import APP
 from ..validator import is_string_number
-from . import UIScaler
+from ._style import UIScaler
 
 # Validator
 QVAL_INTEGER = QIntValidator(-999999, 999999)
@@ -74,12 +74,19 @@ def singleton_dialog(dialog_type: str, show_error: bool = True):
     """Singleton dialog decorator"""
 
     def decorator(dialog_class: BaseDialog):
+        _instance_type: ClassVar[set[str]] = set()
+
+        def remove(dialog_type: str):
+            """Remove dialog type"""
+            _instance_type.remove(dialog_type)
 
         def unset_dialog_state(pointer):
-            DialogSingleton.remove(dialog_type)
+            remove(dialog_type)
 
         def wrapper(*args, **kwargs):
-            if DialogSingleton.new(dialog_type):
+            if dialog_type not in _instance_type:
+                # Append new dialog type if not exist
+                _instance_type.add(dialog_type)
                 instance = dialog_class(*args, **kwargs)
                 instance.destroyed.connect(unset_dialog_state)
                 return instance
@@ -88,33 +95,6 @@ def singleton_dialog(dialog_type: str, show_error: bool = True):
         return wrapper
 
     return decorator
-
-
-class DialogSingleton:
-    """Singleton dialog"""
-
-    _instance_type: set[str] = set()
-
-    def __init__(self):
-        raise TypeError("not for instantiate")
-
-    @classmethod
-    def is_opened(cls, dialog_type: str) -> bool:
-        """Is dialog open"""
-        return dialog_type in cls._instance_type
-
-    @classmethod
-    def new(cls, dialog_type: str) -> bool:
-        """Append new dialog type if not exist"""
-        if dialog_type not in cls._instance_type:
-            cls._instance_type.add(dialog_type)
-            return True
-        return False
-
-    @classmethod
-    def remove(cls, dialog_type: str):
-        """Remove dialog type"""
-        cls._instance_type.remove(dialog_type)
 
 
 class DialogSingletonError:
@@ -153,8 +133,7 @@ class CompactButton(QPushButton):
     def __init__(self, text, parent=None, has_menu=False):
         super().__init__(text, parent)
         self.setFixedWidth(
-            self.fontMetrics().boundingRect(text).width()
-            + UIScaler.FONT_PIXEL_SCALED * (1 + has_menu)
+            self.fontMetrics().boundingRect(text).width() + UIScaler.size(1 + has_menu)
         )
 
 
@@ -178,7 +157,7 @@ class BaseDialog(QDialog):
 
     def set_utility_title(self, name: str):
         """Set utility dialog title"""
-        self.setWindowTitle(f"{name} - {APP_NAME}")
+        self.setWindowTitle(f"{name} - {APP.TINYPEDAL}")
 
     def confirm_operation(self, title: str = "Confirm", message: str = "") -> bool:
         """Confirm operation"""
@@ -188,6 +167,9 @@ class BaseDialog(QDialog):
             defaultButton=QMessageBox.No,
         )
         return confirm == QMessageBox.Yes
+
+    def interrupt(self):
+        """Interrupt when reloading preset"""
 
 
 class BaseEditor(BaseDialog):
@@ -268,7 +250,7 @@ class BaseEditor(BaseDialog):
     def reloading(reload_module: bool = True, reload_widget: bool = True) -> None:
         """Reloading module & widget only"""
         # Delay import
-        from ..module_control import mctrl, wctrl
+        from .. import mctrl, wctrl
 
         if reload_module:
             mctrl.reload()
@@ -420,10 +402,10 @@ class TableBatchReplace(BaseDialog):
         """Update selector list"""
         column_index = self.table_selector[self.column_selector.currentText()]
         self.search_selector.clear()
-        selector_list = set(
+        selector_list = {
             self.table_data.item(row_index, column_index).text()
             for row_index in range(self.table_data.rowCount())
-        )
+        }
         self.search_selector.addItems(sorted(selector_list))
         self.search_selector.setCurrentText(last_search)
 

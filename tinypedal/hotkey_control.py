@@ -28,20 +28,14 @@ from itertools import chain
 from time import sleep
 from typing import Callable, Iterable
 
-from . import app_signal
-from .hotkey.command import (
-    COMMANDS_GENERAL,
-    COMMANDS_MODULE,
-    COMMANDS_PRESET,
-    COMMANDS_WIDGET,
-)
+from . import app_signal, cfg
+from .hotkey.command import COMMANDS
 from .hotkey.common import (
     get_key_state_function,
     load_hotkey,
     refresh_keystate,
     sort_key_codes,
 )
-from .setting import cfg
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +57,13 @@ class HotkeyControl:
     """Hotkey control"""
 
     __slots__ = (
-        "_stopped",
         "_event",
+        "_stopped",
     )
 
     def __init__(self):
-        self._stopped = True
         self._event = threading.Event()
+        self._stopped = True
 
     def enable(self):
         """Enable hotkey control"""
@@ -93,7 +87,7 @@ class HotkeyControl:
     def __updating(self):
         """Update hotkey state"""
         _event_wait = self._event.wait
-        available_commands = gather_command(chain(COMMANDS_GENERAL, COMMANDS_PRESET, COMMANDS_MODULE, COMMANDS_WIDGET))
+        available_commands = gather_command(chain(COMMANDS.GENERAL, COMMANDS.PRESET, COMMANDS.MODULE, COMMANDS.WIDGET))
         available_key_codes = sort_key_codes(available_commands.keys())
 
         get_key_state = get_key_state_function()
@@ -118,6 +112,3 @@ class HotkeyControl:
 
         self._stopped = True
         logger.info("DISABLED: hotkey control")
-
-
-kctrl = HotkeyControl()

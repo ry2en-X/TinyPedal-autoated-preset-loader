@@ -20,8 +20,8 @@
 Damage stats Widget
 """
 
-from ..api_control import api
-from ..const_common import TEXT_NA
+from .. import api
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -47,7 +47,7 @@ class Realtime(Overlay):
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
         self.decimals = max(self.wcfg["decimal_places"], 0)
         self.width_integrity = 3 + self.decimals + (self.decimals > 0)
-        bar_width = font_m.width * self.width_integrity + bar_padx
+        bar_width = font_m.width * self.width_integrity
 
         if self.wcfg["layout"] == 0:
             width_aero = max(
@@ -73,7 +73,8 @@ class Realtime(Overlay):
                 self.wcfg["warning_color_low_aero_integrity"],
             )
             self.bar_aero = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -84,7 +85,8 @@ class Realtime(Overlay):
             if self.wcfg["show_integrity_prefix"]:
                 bar_aero_prefix = self.set_rawtext(
                     text=self.wcfg["prefix_aero_integrity"],
-                    width=font_m.width * width_aero + bar_padx,
+                    padding=bar_padx,
+                    width=font_m.width * width_aero,
                     fixed_height=font_m.height,
                     offset_y=font_m.voffset,
                     fg_color=self.wcfg["font_color_integrity_prefix"],
@@ -104,7 +106,8 @@ class Realtime(Overlay):
                 self.wcfg["warning_color_low_body_integrity"],
             )
             self.bar_body = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -115,7 +118,8 @@ class Realtime(Overlay):
             if self.wcfg["show_integrity_prefix"]:
                 bar_body_prefix = self.set_rawtext(
                     text=self.wcfg["prefix_body_integrity"],
-                    width=font_m.width * width_body + bar_padx,
+                    padding=bar_padx,
+                    width=font_m.width * width_body,
                     fixed_height=font_m.height,
                     offset_y=font_m.voffset,
                     fg_color=self.wcfg["font_color_integrity_prefix"],
@@ -135,7 +139,8 @@ class Realtime(Overlay):
                 self.wcfg["warning_color_low_suspension_integrity"],
             )
             self.bar_susp = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -146,7 +151,8 @@ class Realtime(Overlay):
             if self.wcfg["show_integrity_prefix"]:
                 bar_susp_prefix = self.set_rawtext(
                     text=self.wcfg["prefix_suspension_integrity"],
-                    width=font_m.width * width_susp + bar_padx,
+                    padding=bar_padx,
+                    width=font_m.width * width_susp,
                     fixed_height=font_m.height,
                     offset_y=font_m.voffset,
                     fg_color=self.wcfg["font_color_integrity_prefix"],
@@ -166,7 +172,8 @@ class Realtime(Overlay):
                 self.wcfg["warning_color_low_tyre_integrity"],
             )
             self.bar_tyre = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -177,7 +184,8 @@ class Realtime(Overlay):
             if self.wcfg["show_integrity_prefix"]:
                 bar_tyre_prefix = self.set_rawtext(
                     text=self.wcfg["prefix_tyre_integrity"],
-                    width=font_m.width * width_tyre + bar_padx,
+                    padding=bar_padx,
+                    width=font_m.width * width_tyre,
                     fixed_height=font_m.height,
                     offset_y=font_m.voffset,
                     fg_color=self.wcfg["font_color_integrity_prefix"],
@@ -224,7 +232,7 @@ class Realtime(Overlay):
                 text = f"{data:.{self.decimals}%}"[:self.width_integrity]
                 color = style[data <= threshold]
             else:
-                text = TEXT_NA
+                text = DATA.TEXT_NA
                 color = style[0]
             target.text = text
             target.bg = color

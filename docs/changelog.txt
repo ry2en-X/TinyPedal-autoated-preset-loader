@@ -1,7 +1,182 @@
 WIP
 -----------------------------
-* General
+* Track Map Viewer
+  - Now supports click and drag for moving map view.
+  - Added "Reset Map View" and "Reset Map Zoom" options to right-click context menu.
+
+* Radar Widget
+  - No longer displays vehicle in garage (requested by user "Zezituh").
+
+* Relative, Rivals, Standings Widget
+  - Added "drive through", "stop go", "disqualify" penalty type display to "pit status" column (requested by users from issues #157 #345).
+    Note, penalty type only works for "LMU". Only one of the most outstanding penalty types is displayed at a time. For example, stop go penalty will be displayed over drive through penalty while having both penalties.
+    Due to some limitations in game API, penalty type data will not be preserved after restarted or reloaded overlay during a session.
+  - Added "pit_status_text_alignment", "drive_through_status_text", "stop_go_status_text", "disqualify_status_text" and color options. Default status text "D" for drive through (red), "S" for stop go (red), "D" for disqualify (black).
+  - Removed "show_vehicle_in_garage" option from Relative Widget.
+
+* Relative, Vehicles Module
+  - Further optimized vehicles data processing methods for more efficiency.
+
+* Wheels Module
+  - Disabled brake failure detection while spectating to avoid incorrect data.
+
+2.53.0 (2026-11-06)
+-----------------------------
+* Overlay
+  - Added "Combined Mode" option in "Overlay" menu, which sets overlay combined mode for displaying widgets. This option is disabled by default.
+    While "Combined Mode" enabled, all Widgets will be combined and drawn in one single maximized window, which may improve performance and compatibility when using "OpenKneeboard" (or similar tool) for displaying overlay in "VR", and making it easier to project overlay window.
+    Generally, it is only recommended to enable this option for "VR", or there is noticeable performance gain while enabled.
+  - See User Guide "Overlay" section for details about "Combined Mode".
+
+* Hotkey Tab
+  - Added "Overlay Combined Mode" keybinding for toggling overlay combined mode.
+
+* Fuel Calculator
+  - Added "Stint laps" column under "Stint" header, which shows stint lap number for each lap entry. Column can be toggled hidden via right-click menu on column header.
+  - Added "Final stint laps" reading, which shows number of laps to complete on the final stint.
+  - Show line separator between each new stint (grey color) or session (red color) lap data for improved readability.
+  - Added separate tabs for "Fuel usage" and "Wear rate" calculations.
+  - Added "Brake wear" calculation under "Wear rate".
+  - Added "Pad F" (front) and "Pad R" (rear) brake wear columns, each shows the highest pad (millimeters) wear of front or rear brakes per lap.
+  - Separated "Tyre" column into "Tyre F" (front) and "Tyre R" (rear) tyre wear columns, each shows the highest tread (percentage) wear of front or rear tyres per lap.
+
+* Stint Module
+  - Added stint lap number and brake wear logging to Consumption History data.
+  - Increased maximum Consumption History data logging from "100" to "300" most recent laps per vehicle class.
+
+* Wheels Module
+  - Added "minimum_brake_failure_detection_time" option, which sets minimum detection time (seconds) for detecting brake failure while under braking. Default is "3" seconds. Minimum detection time is limited to "1" second.
+  - Improved brake failure detection and logging methods.
+
+* Pace notes playback
+  - Added "Enable Playback While Spectating" check box, which allows to enable or disable pace notes playback while "Spectate" mode enabled. This option is disabled by default.
+
+* Brake wear
+  - "show_thickness" option now shows remaining brake thickness separately from "show_remaining" option.
+
+* Damage Widget
+  - Added "global_scale" option (requested by user "cnc3937-eng"), which allows to scale display size without adjusting size of individual parts. Default scale is "1.0". Minimum scale is limited to "0.1".
+
+* Flag Widget
+  - Added "show_speeding_in_pit" option (requested by user "KyanH06"), which shows warning indication when speeding in pit lane. First value shows maximum speed exceeded above pit lane speed limit. Second value shows total speeding time in seconds.
+  - Added "pit_lane_speed_limit" option, which sets pit lane speed limit (in KPH) for detecting speeding. Default value is "60" KPH.
+    Note, since game API does not provide speed limit info, this option must be set manually to detect speeding correctly. Different games or tracks may have different speed limit.
+  - Added "speeding_highlight_duration" option, which sets highlight duration for displaying speeding indication after exiting pit.
+
+* Lap time history Widget
+  - Added "show_stint_laps" option (requested by user "lucamilan87"), which shows stint lap number.
+  - Added "laps_width", "stint_laps_width" options, which set max display width for lap number.
+  - Added "show_highest_wear" option (requested by user "lucamilan87"), which shows highest tread wear of all tyres instead of average wear. This option is disabled by default.
+
+* [New]Class fields Widget
+  - Show number of active, inactive, and total vehicles for each vehicle class in a session (implemented by @Bykow).
+    Note, each field shows class name, followed by number of active vehicles (on track or in pit lane) and total vehicles in class, for example "GT3 12/18". Field background color follows class color from "Vehicle Class Editor". Fields are sorted by class leader's overall position. Vehicles that are in garage, DNF or DQ are not counted as active.
+
+* RF2 API
+  - Added "memory_map_prefix" option, which sets memory map file name prefix for accessing RF2 API via alternative plugin version. Make sure to leave this option as blank if you are using the original "rFactor2SharedMemoryMapPlugin64.dll" Plugin.
+    This option is provided for compatibility purpose, which may be used with alternative RF2 SharedMemory Plugin, such as [RF2.3.8.SharedMemoryMapPlugin.dll](https://github.com/TonyWhitley/rF2SharedMemoryMapPlugin/releases) that used by CrewChief.
+    Note, to use with "RF2.3.8.SharedMemoryMapPlugin.dll", set prefix value to "rF2.3.8.". Remember to update prefix value (with matching version value) if a new version of the plugin DLL file installed in game.
+  - Fixed an issue that caused RF2 API not working on Linux.
+
+2.52.0 (2026-10-23)
+-----------------------------
+* Relative, Rivals, Standings Widget
+  - Added "show_energy_usage, show_last_energy_usage, show_average_energy_usage" options, which show last lap and average five laps energy usage.
+    Note, both "show_last_energy_usage" and "show_average_energy_usage" options are optional. However if both options are disabled, last lap energy usage will be displayed instead.
+    For vehicle without virtual energy, fuel usage (only if available) will be displayed instead.
+  - Added "show_caption_*" options (by @Bykow), which shows caption row on top of table columns. Caption may expand column width to fit caption text. Caption alignment follows corresponding column text alignment option.
+    Note, "caption_text_title" option allows to set title text that displayed across leading columns with empty caption text, such as position, brand logo, driver name columns. Default is widget name. Set to "" (blank) to disable.
+  - Replaced "driver_name_align_center, vehicle_name_align_center, time_gap_align_center, time_interval_align_center" with new corresponding "text_alignment" options, which support "Left, Center, Right" alignment. Old setting will be automatically transferred over.
+  - New text alignment options now supports proper left or right alignment for regular (none monospaced) fonts (requested by user "ssalamon").
+  - Fixed a display issue where opponent's remaining fuel always stuck on 50% for vehicle without virtual energy (reported by user "kfran42").
+  - Fixed a display issue where empty delta lap time row sometimes did not hide.
+
+* Slip angle Widget
+  - Added "show_peak_slip_angle_reading" option, which shows peak slip angle reading under recent maximum lateral acceleration. This option is disabled by default.
+
+* ACC API
+  - Added "memory_map_prefix" option, which set memory map file name prefix for accessing API on Linux. This option is not used on Windows system. See User Guide for details.
+  - Fixed ACC shared memory API accessing issues on Linux (by @Potajito), ACC API now fully functional on Linux.
+
+* Misc
+  - Fixed an issue where sometimes track clock time scale could not be synchronized.
+  - Improved column caption drawing methods for "Lap time history" & "Stint history" widgets (by @Bykow).
+  - Added new contributor "Potajito" to contributors.md in "Cross-platform" section.
+  - Various optimization.
+
+2.51.0 (2026-10-03)
+-----------------------------
+* [New]Support for Assetto Corsa Competizione
+  - TinyPedal now supports reading and displaying telemetry info from "ACC". New telemetry API options for "ACC" can be accessed from "API" menu.
+    Note, "ACC" game API has less available telemetry data compare to "LMU" or "RF2", which means some data will be missing or shown as zero.
+    Make sure to read "Setup for Assetto Corsa Competizione" page for configuring API properly.
+    See Frequently Asked Questions for common issues.
+
+* Engine Widget
+  - Added "show_drive_ratio" option, which shows drive ratio between engine and drive wheel rotational speed.
+  - Added "drive_wheel_allocation" option. "0" for rear-wheel drive (default). "1" for front-wheel drive. "2" for all-wheel drive.
+  - Removed "show_oil_temperature" and "show_water_temperature" options (available in Engine temperature Widget).
+
+* Engine temperature Widget
+  - Added "show_exhaust_temperature" option. This option only works for "ACC".
+
+* Instrument Widget
+  - Now shows engine off color (red) warning when both ignition & engine are off.
+
+* Rake angle, Ride height, Roll angle Widget
+  - Added "static_height_front" & "static_height_rear" options in Ride height Widget, which sets static front and rear ride height (in millimeters) for calculating ride height, rake angle, roll angle estimates. These options are only used for "ACC", and shared with Rake angle and Roll angle Widget.
+    Note, both options have to be manually set according to the ride height values from car setup "Aero" page to get correct estimates in "ACC".
+
+* Relative, Rivals, Standings Widget
+  - Added "show_track_limits_points" option (requested by user "paulndale79-png"), which shows driver's current track limits points (LMU only). This option is disabled by default.
+
+* Session Widget
+  - Added "session_text_hotlap" option for hotlap session type.
+
+* Slip angle Widget
+  - Added "show_peak_slip_angle_under_maximum_lateral_g" option, which visualizes peak slip angle range under recent maximum lateral acceleration. Note, peak slip angle range auto-recalibrates itself over time.
+
+* Onboard setting Widget
+  - Added "show_wiper_state" option.
+
+* [New]Wheel dimension Widget
+  - Show average front and rear tyre radius (in millimeters) measured in real time.
+  - Show front and rear wheel track (in millimeters) measured in real time ("ACC" only).
+  - Show wheelbase (in millimeters) measured in real time ("ACC" only).
+
+* [New]Wind direction Widget
+  - Show wind arrow and direction marks relative to player's vehicle heading.
+  - Show wind strength color indication on wind arrow, with customizable wind strength threshold setting. Note, wind arrow will be replaced by a solid circle if wind speed is below "calm" threshold.
+  - Show wind speed reading, default unit is "m/s", which can be changed in "Units" dialog.
+  - Note, currently this widget only works for "ACC". "RF2" and "LMU" do not have wind simulation, wind speed is always zero.
+
+* Mapping Module
+  - Added "minimum_node_distance" option, which sets minimum recording distance (in meters) between each map node sample.
+
+* Wheels Module
+  - Added "enable_wheel_dimension_measurement" option, which enables real time wheel dimension measurement and calculation for tyre radius, wheel track, wheelbase. Note, wheel track and wheelbase measurement is only available for "ACC".
+  - Widgets that depend on "wheel track" & "wheelbase" data nows read data from measured wheel dimensions (if available).
+
+* Heatmap
+  - Changed default tyre heatmap to "tyre_optimal_80" when adding new tyre compounds.
+  - Changed default brake heatmap to "brake_optimal_400" when adding new brake compounds.
+  - Added "thermal_infrared" heatmap that based on old "tyre_default" heatmap.
+  - Existing presets will not be changed.
+
+* Units
+  - Added "wind speed unit" option in "Units" config dialog.
+
+* Track Info Editor
+  - Added "Orient (°)" column (requested by user "tomydinino"), which sets display orientation angle (in degrees) for "Track Map" widget. This option allows custom map orientation for individual map without having to switch and config different presets. This option is additive to "display_orientation" option in "Track Map" widget.
+
+* Vehicle Brand Editor
+  - Brand name matching is now based on "vehicle model" name for "LMU" & "ACC".
+  - Removed "import from LMU Rest API" option, which no longer used for LMU.
+
+* Misc
   - Fixed pace notes playback kept active even when disabled.
+  - Removed unused "electric_braking_allocation" option from Brake bias Widget.
+  - Added "pyACCSharedMemory" library for accessing "ACC" API.
 
 2.50.2 (2026-09-10)
 -----------------------------
@@ -989,11 +1164,11 @@ Thanks to everyone supporting the development, have fun.
 * Tyre Wear Widget
   - [New]Add "show_end_stint_remaining" option, which shows estimated total remaining tyre tread at the end of current stint. This option helps to determine whether there is enough tread for current or more stints. Negative reading indicates that there will not be enough tyre tread remaining at the end of current stint.
   - "show_wear_difference" option now shows estimated tyre wear difference per lap (at least one valid lap is required).
-  - Removed "show_live_wear_difference", "freeze_duration" options. 
+  - Removed "show_live_wear_difference", "freeze_duration" options.
 
 * Brake Wear Widget
   - "show_wear_difference" option now shows estimated brake wear difference per lap (at least one valid lap is required).
-  - Removed "show_live_wear_difference", "freeze_duration" options. 
+  - Removed "show_live_wear_difference", "freeze_duration" options.
 
 * Fuel, Virtual Energy Widget
   - [New]Add "show_low_fuel_warning_flash" and "show_low_energy_warning_flash" options (requested by users "ebeninca"), which show warning flash effect while on low fuel or low virtual energy. This option is enabled by default.
@@ -3655,7 +3830,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
   - Add "show_player_highlighted" option,
     which highlights player row with customizable specific color.
   - Add "show_lap_difference" option,
-    which shows different font color based on lap difference between player and opponents. 
+    which shows different font color based on lap difference between player and opponents.
   - Add "show_position", "show_driver_name", "show_time_gap" options,
     which can be turned on or off individually.
   - Add "driver_name_uppercase" option,
@@ -3685,7 +3860,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
     "enable_multi_class_split_mode" is enabled.
     If total vehicle number is above this value,
     any extra vehicles will not be shown.
-    Default value is "50", which is sufficient in most case. 
+    Default value is "50", which is sufficient in most case.
   - Reworked "show_time_gap" option.
     For race session, this option shows time gap between leader and all other drivers.
     For other none race sessions, this option shows the time gap
@@ -4094,7 +4269,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
 * Preset manager
   - [New]Add menu bar with same functionality as tray icon menu for all platform,
     which substitutes tray icon for none-windows platform.
-  - Now handles all underlaying widget & module & APP control. 
+  - Now handles all underlaying widget & module & APP control.
 
 * Sectors Widget
   - Properly saves current session fastest top speed from valid lap.
@@ -4177,7 +4352,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
   - [New]Added fuel consumption recording & delta calculation functions to Fuel module.
   - [New]Fuel delta consumption file is now saved in "TinyPedal\deltabest" folder with *.fuel extension,
     Note: For accuracy purpose, only the fuel delta consumption data from most recent complete lap
-          will be recorded and used for delta consumption calculation. 
+          will be recorded and used for delta consumption calculation.
           This includes full laps that have exceeded track limits, but excludes pitin & pitout laps.
   - Fixed an error that occurred after toggle auto-hide and reload preset.
   - Improved auto-hide function.
@@ -4306,7 +4481,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
   - Moved all fuel usage calculation into the new separated "Fuel Module"
     which runs in a separated thread at a much higher 1000hz refresh rate.
   - Fuel Widget as well as other Widgets now have access to fuel usage info from this module.
-  - Ignores pit-in & pit-out lap for more accurate fuel usage report for endurance race. 
+  - Ignores pit-in & pit-out lap for more accurate fuel usage report for endurance race.
 
 * Gear Widget
   - [New]Display low fuel warning beside speed gauge. Default is set to show only for race.
@@ -4422,7 +4597,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
   - Add new "minimum_speed" setting in config file, default value is 16.5 (m/s),
     which is the minimum speed threshold before APP can record wheel radius samples.
   - Add new "minimum_samples" setting in config file, default value is 400,
-    which is the minimum number of radius samples that required for calculating average wheel radius. 
+    which is the minimum number of radius samples that required for calculating average wheel radius.
   - Both settings significantly increase accuracy of wheel radius reading.
 
 * Gear Widget
@@ -4534,7 +4709,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
 ----------------------------
 * Core
   - Added additional best laptime validation condition for deltabest module
-    that fixed invalid deltabest laptime being saved in some rare cases. 
+    that fixed invalid deltabest laptime being saved in some rare cases.
 
 1.3.2 (2022-05-24)
 ----------------------------
@@ -4665,7 +4840,7 @@ Thanks to @DanRZ for suggestions and testing feedback.
 
 * Wear Widget
   - Show new Tyre wear usage from last lap.
-  - No longer shows Tyre pressure. 
+  - No longer shows Tyre pressure.
 
 * Core
   - [New]Add additional unit types (by thoraxe) for Fuel, Temperature, Weather widgets.

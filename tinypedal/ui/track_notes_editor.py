@@ -43,9 +43,8 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..api_control import api
-from ..const_common import EMPTY_DICT
-from ..setting import cfg
+from .. import api, cfg
+from ..constant import DATA
 from ..userfile.track_notes import (
     COLUMN_DISTANCE,
     COLUMN_TAGS,
@@ -73,8 +72,6 @@ from ._common import (
 )
 from .track_map_viewer import MapView
 
-DECIMALS = 2
-
 
 def set_file_path(notes_type: str, filename: str = "") -> str:
     """Set file path"""
@@ -92,6 +89,7 @@ class TrackNotesEditor(BaseEditor):
         super().__init__(parent)
         self.set_utility_title("Track Notes Editor")
 
+        self.decimals = 2
         self.notes_type = None
         self.notes_header = None
         self.notes_metadata = create_notes_metadata()
@@ -346,13 +344,13 @@ class TrackNotesEditor(BaseEditor):
             self.add_table_row(row_index, note_line)
         self._verify_enabled = True
 
-    def add_table_row(self, row_index: int, note_data: dict = EMPTY_DICT):
+    def add_table_row(self, row_index: int, note_data: dict = DATA.EMPTY_DICT):
         """Add new table row"""
         self.table_notes.insertRow(row_index)
         for column_index, fieldname in enumerate(self.notes_header):
             if fieldname == COLUMN_DISTANCE:
                 value = note_data.get(fieldname, 0)
-                item = FloatTableItem(round(value, DECIMALS))
+                item = FloatTableItem(round(value, self.decimals))
             elif fieldname == COLUMN_TAGS:
                 value = note_data.get(fieldname, "")
                 item = QTableWidgetItem(value)
@@ -398,7 +396,7 @@ class TrackNotesEditor(BaseEditor):
                 value *= offset
             else:
                 value += offset
-            item.setValue(round(value, DECIMALS))
+            item.setValue(round(value, self.decimals))
         self._verify_enabled = True
         self.set_modified()
         self.mark_positions_on_map()
@@ -423,7 +421,7 @@ class TrackNotesEditor(BaseEditor):
         if not self.confirm_operation(message=f"Set position at <b>{position}</b> {source}?"):
             return
 
-        pos_curr = round(position, DECIMALS)
+        pos_curr = round(position, self.decimals)
         row_index = self.table_notes.currentRow()
         self.table_notes.item(row_index, 0).setValue(pos_curr)
         self.mark_positions_on_map()
@@ -450,7 +448,7 @@ class TrackNotesEditor(BaseEditor):
 
     def delete_notes(self):
         """Delete notes entry"""
-        selected_rows = set(data.row() for data in self.table_notes.selectedIndexes())
+        selected_rows = {data.row() for data in self.table_notes.selectedIndexes()}
         if not selected_rows:
             QMessageBox.warning(self, "Error", "No data selected.")
             return
@@ -476,11 +474,10 @@ class TrackNotesEditor(BaseEditor):
         )
         return list(temp)
 
-    @staticmethod
-    def parse_notes(item, index: int):
+    def parse_notes(self, item, index: int):
         """Parse notes"""
         if index == 0:
-            return round(item.value(), DECIMALS)
+            return round(item.value(), self.decimals)
         return item.text()
 
     def saving(self):
@@ -600,7 +597,7 @@ class TrackNotesEditor(BaseEditor):
     def add_tag(self, tag_name: str):
         """Add tag"""
         column_index = 3
-        row_indexes = set(data.row() for data in self.table_notes.selectedIndexes())
+        row_indexes = {data.row() for data in self.table_notes.selectedIndexes()}
         for row_index in row_indexes:
             item = self.table_notes.item(row_index, column_index)
             text = item.text()
@@ -611,7 +608,7 @@ class TrackNotesEditor(BaseEditor):
         """Remove all tags"""
         if self.confirm_operation("Clear Tag", "Clear all tags from selected notes?"):
             column_index = 3
-            row_indexes = set(data.row() for data in self.table_notes.selectedIndexes())
+            row_indexes = {data.row() for data in self.table_notes.selectedIndexes()}
             for row_index in row_indexes:
                 item = self.table_notes.item(row_index, column_index)
                 item.setText("")
@@ -625,10 +622,10 @@ class TrackNotesEditor(BaseEditor):
 
     def mark_positions_on_map(self):
         """Mark all positions on map"""
-        temp_coords = set(
+        temp_coords = {
             self.table_notes.item(row_index, 0).value()
             for row_index in range(self.table_notes.rowCount())
-        )
+        }
         self.trackmap.update_marked_coords(temp_coords)
 
     def get_track_name(self) -> str:

@@ -20,11 +20,9 @@
 Gear Widget
 """
 
+from .. import api, minfo, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import GEAR_SEQUENCE, TEXT_NA
-from ..module_info import minfo
+from ..constant import DATA
 from ._base import Overlay
 from ._painter import GearGaugeBar, ProgressBar
 
@@ -109,7 +107,7 @@ class Realtime(Overlay):
             self.bar_rpmbar = ProgressBar(
                 self,
                 font=font_rpm,
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
                 width=gauge_width,
                 height=max(self.wcfg["rpm_bar_height"], 1),
                 offset_x=self.wcfg["rpm_reading_offset_x"],
@@ -118,7 +116,7 @@ class Realtime(Overlay):
                 fg_color=self.wcfg["font_color_rpm"],
                 bg_color=self.wcfg["background_color_rpm_bar"],
                 show_reading=self.wcfg["show_rpm_reading"],
-                align=self.set_text_alignment(self.wcfg["rpm_reading_text_alignment"]),
+                alignment=self.wcfg["rpm_reading_text_alignment"],
                 right_side=self.wcfg["show_inverted_rpm"],
             )
             self.set_primary_orient(
@@ -139,7 +137,7 @@ class Realtime(Overlay):
             self.bar_battbar = ProgressBar(
                 self,
                 font=font_batt,
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
                 width=gauge_width,
                 height=max(self.wcfg["battery_bar_height"], 1),
                 offset_x=self.wcfg["battery_reading_offset_x"],
@@ -148,7 +146,7 @@ class Realtime(Overlay):
                 fg_color=self.wcfg["font_color_battery"],
                 bg_color=self.wcfg["background_color_battery_bar"],
                 show_reading=self.wcfg["show_battery_reading"],
-                align=self.set_text_alignment(self.wcfg["battery_reading_text_alignment"]),
+                alignment=self.wcfg["battery_reading_text_alignment"],
                 right_side=self.wcfg["show_inverted_battery"],
             )
             self.bar_battbar.state = None
@@ -169,7 +167,7 @@ class Realtime(Overlay):
             self.bar_consbar = ProgressBar(
                 self,
                 font=font_cons,
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
                 width=gauge_width,
                 height=max(self.wcfg["consumption_bar_height"], 1),
                 offset_x=self.wcfg["consumption_reading_offset_x"],
@@ -178,7 +176,7 @@ class Realtime(Overlay):
                 fg_color=self.wcfg["font_color_consumption"],
                 bg_color=self.wcfg["background_color_consumption_bar"],
                 show_reading=self.wcfg["show_consumption_reading"],
-                align=self.set_text_alignment(self.wcfg["consumption_reading_text_alignment"]),
+                alignment=self.wcfg["consumption_reading_text_alignment"],
                 right_side=self.wcfg["show_inverted_consumption"],
             )
             self.set_primary_orient(
@@ -277,7 +275,7 @@ class Realtime(Overlay):
             target.last = gauge_state
             color_index = self.color_rpm(rpm, gear, speed)
             target.update_input(
-                GEAR_SEQUENCE(gear, "N"),
+                DATA.GEAR_SEQUENCE(gear, "N"),
                 self.unit_speed(speed),
                 color_index,
                 self.gauge_color[color_index],

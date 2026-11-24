@@ -23,8 +23,39 @@ API data reader (abstract class)
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import NamedTuple
 
-from ..process.weather import WeatherNode
+
+class APIDataReader(NamedTuple):
+    """API data reader
+
+    Attributes:
+        state: State
+        brake: Brake
+        emotor: Electric motor
+        engine: Engine
+        inputs: Inputs
+        lap: Lap
+        session: Session
+        switch: Switch
+        timing: Timing
+        tyre: Tyre (front left, front right, rear left, rear right)
+        vehicle: Vehicle
+        wheel: Wheel & suspension (front left, front right, rear left, rear right)
+    """
+
+    state: State
+    brake: Brake
+    emotor: ElectricMotor
+    engine: Engine
+    inputs: Inputs
+    lap: Lap
+    session: Session
+    switch: Switch
+    timing: Timing
+    tyre: Tyre
+    vehicle: Vehicle
+    wheel: Wheel
 
 
 class State(ABC):
@@ -45,10 +76,6 @@ class State(ABC):
         """Number of player vehicle resets"""
 
     @abstractmethod
-    def desynced(self, index: int | None = None) -> bool:
-        """Is player data desynced from others"""
-
-    @abstractmethod
     def version(self) -> str:
         """Identify API version"""
 
@@ -57,6 +84,10 @@ class Brake(ABC):
     """Brake"""
 
     __slots__ = ()
+
+    @abstractmethod
+    def compound_name(self, index: int | None = None) -> tuple[str, str]:
+        """Brake compound name, front, rear"""
 
     @abstractmethod
     def bias_front(self, index: int | None = None) -> float:
@@ -76,7 +107,7 @@ class Brake(ABC):
 
     @abstractmethod
     def wear(self, index: int | None = None) -> tuple[float, ...]:
-        """Brake remaining thickness (meters)"""
+        """Brake remaining thickness (millimeters)"""
 
 
 class ElectricMotor(ABC):
@@ -151,6 +182,10 @@ class Engine(ABC):
         """Water temperature (Celsius)"""
 
     @abstractmethod
+    def exhaust_temperature(self, index: int | None = None) -> float:
+        """Exhaust temperature (Celsius)"""
+
+    @abstractmethod
     def lift_and_coast_progress(self, index: int | None = None) -> float:
         """Lift and coast progress (fraction), range 0.0 to 1.0"""
 
@@ -173,6 +208,10 @@ class Engine(ABC):
     @abstractmethod
     def max_virtual_energy(self) -> float:
         """Maximum virtual energy (joule)"""
+
+    @abstractmethod
+    def absolute_refill(self) -> float:
+        """Absolute refill fuel (liter) or virtual energy (percent)"""
 
 
 class Inputs(ABC):
@@ -206,23 +245,11 @@ class Inputs(ABC):
 
     @abstractmethod
     def steering(self, index: int | None = None) -> float:
-        """Steering filtered (fraction)"""
+        """Steering (fraction)"""
 
     @abstractmethod
-    def steering_raw(self, index: int | None = None) -> float:
-        """Steering raw (fraction)"""
-
-    @abstractmethod
-    def steering_shaft_torque(self, index: int | None = None) -> float:
-        """Steering shaft torque (Nm)"""
-
-    @abstractmethod
-    def steering_range_physical(self, index: int | None = None) -> float:
+    def steering_range(self, index: int | None = None) -> float:
         """Steering physical rotation range (degrees)"""
-
-    @abstractmethod
-    def steering_range_visual(self, index: int | None = None) -> float:
-        """Steering visual rotation range (degrees)"""
 
     @abstractmethod
     def force_feedback(self) -> float:
@@ -235,11 +262,7 @@ class Lap(ABC):
     __slots__ = ()
 
     @abstractmethod
-    def number(self, index: int | None = None) -> int:
-        """Current lap number"""
-
-    @abstractmethod
-    def completed_laps(self, index: int | None = None) -> int:
+    def completed(self, index: int | None = None) -> int:
         """Total completed laps"""
 
     @abstractmethod
@@ -265,14 +288,6 @@ class Lap(ABC):
     @abstractmethod
     def sector_index(self, index: int | None = None) -> int:
         """Sector index, 0 = S1, 1 = S2, 2 = S3"""
-
-    @abstractmethod
-    def behind_leader(self, index: int | None = None) -> int:
-        """Laps behind leader"""
-
-    @abstractmethod
-    def behind_next(self, index: int | None = None) -> int:
-        """Laps behind next place"""
 
     @abstractmethod
     def safety_car_distance(self) -> float:
@@ -305,20 +320,12 @@ class Session(ABC):
         """Session elapsed time (seconds)"""
 
     @abstractmethod
-    def start(self) -> float:
-        """Session start time (seconds)"""
-
-    @abstractmethod
-    def end(self) -> float:
-        """Session end time (seconds)"""
-
-    @abstractmethod
     def remaining(self) -> float:
         """Session time remaining (seconds), minimum limit to 0"""
 
     @abstractmethod
     def session_type(self) -> int:
-        """Session type, 0 = TESTDAY, 1 = PRACTICE, 2 = QUALIFY, 3 = WARMUP, 4 = RACE"""
+        """Session type, 0 = TESTDAY, 1 = PRACTICE, 2 = QUALIFY, 3 = WARMUP, 4 = RACE, 5 = HOTLAP"""
 
     @abstractmethod
     def finish_type(self, as_lap: bool | None = None) -> int:
@@ -354,7 +361,7 @@ class Session(ABC):
 
     @abstractmethod
     def start_lights(self) -> int:
-        """Start lights countdown sequence, 0=green flag"""
+        """Start lights countdown sequence, 0=green flag, -1=no start lights"""
 
     @abstractmethod
     def track_temperature(self) -> float:
@@ -373,24 +380,12 @@ class Session(ABC):
         """
 
     @abstractmethod
-    def wetness_minimum(self) -> float:
-        """Road minimum wetness (fraction)"""
+    def wetness(self) -> float:
+        """Road wetness set (fraction), range 0.0 - 1.0"""
 
     @abstractmethod
-    def wetness_maximum(self) -> float:
-        """Road maximum wetness (fraction)"""
-
-    @abstractmethod
-    def wetness_average(self) -> float:
-        """Road average wetness (fraction)"""
-
-    @abstractmethod
-    def wetness(self) -> tuple[float, float, float]:
-        """Road wetness set (fraction)"""
-
-    @abstractmethod
-    def weather_forecast(self) -> tuple[WeatherNode, ...]:
-        """Weather forecast nodes"""
+    def weather_forecast(self) -> tuple[tuple[float, int, float, float], ...]:
+        """Weather forecast nodes, 0=forecast minutes, 1=sky type index, 2=air temperature, 3=rain chance"""
 
     @abstractmethod
     def cloud_coverage(self) -> int:
@@ -407,7 +402,7 @@ class Session(ABC):
         """Track base grip level, convert to fraction 0.0 to 1.0"""
 
     @abstractmethod
-    def track_time(self) -> float:
+    def track_time(self, scale: int = 1) -> float:
         """Track time"""
 
     @abstractmethod
@@ -421,6 +416,14 @@ class Session(ABC):
     @abstractmethod
     def cut_points(self, index: int | None = None) -> float:
         """Current track limits cut points per penalty"""
+
+    @abstractmethod
+    def wind_direction(self) -> float:
+        """Wind direction (degrees)"""
+
+    @abstractmethod
+    def wind_speed(self) -> float:
+        """Wind speed (m/s)"""
 
 
 class Switch(ABC):
@@ -469,8 +472,8 @@ class Switch(ABC):
         """Headlights"""
 
     @abstractmethod
-    def ignition_starter(self, index: int | None = None) -> int:
-        """Ignition"""
+    def ignition(self, index: int | None = None, stall_rpm: float = 100) -> int:
+        """Ignition, 0=engine off, 1=ignition on, 2=engine on"""
 
     @abstractmethod
     def speed_limiter(self, index: int | None = None) -> int:
@@ -499,12 +502,12 @@ class Timing(ABC):
     __slots__ = ()
 
     @abstractmethod
-    def start(self, index: int | None = None) -> float:
-        """Current lap start time (seconds)"""
+    def elapsed(self, index: int | None = None) -> float:
+        """Current elapsed time (seconds)"""
 
     @abstractmethod
-    def elapsed(self, index: int | None = None) -> float:
-        """Current lap elapsed time (seconds)"""
+    def is_last_valid(self, index: int | None = None) -> bool:
+        """Is last lap time valid"""
 
     @abstractmethod
     def current_laptime(self, index: int | None = None) -> float:
@@ -512,7 +515,7 @@ class Timing(ABC):
 
     @abstractmethod
     def last_laptime(self, index: int | None = None) -> float:
-        """Last lap time (seconds)"""
+        """Last lap time (seconds), positive=valid, negative=invalid"""
 
     @abstractmethod
     def best_laptime(self, index: int | None = None) -> float:
@@ -524,53 +527,21 @@ class Timing(ABC):
 
     @abstractmethod
     def estimated_laptime(self, index: int | None = None) -> float:
-        """Estimated lap time (seconds)"""
+        """Estimated lap time (seconds), default to 120.0 if zero"""
 
     @abstractmethod
     def estimated_time_into(self, index: int | None = None) -> float:
         """Estimated time into lap (seconds)"""
 
     @abstractmethod
-    def current_sector1(self, index: int | None = None) -> float:
-        """Current lap sector 1 time (seconds)"""
-
-    @abstractmethod
-    def current_sector2(self, index: int | None = None) -> float:
-        """Current lap sector 1+2 time (seconds)"""
-
-    @abstractmethod
-    def last_sector1(self, index: int | None = None) -> float:
-        """Last lap sector 1 time (seconds)"""
-
-    @abstractmethod
-    def last_sector2(self, index: int | None = None) -> float:
-        """Last lap sector 1+2 time (seconds)"""
-
-    @abstractmethod
-    def best_sector1(self, index: int | None = None) -> float:
-        """Best lap sector 1 time (seconds)"""
-
-    @abstractmethod
-    def best_sector2(self, index: int | None = None) -> float:
-        """Best lap sector 1+2 time (seconds)"""
-
-    @abstractmethod
-    def behind_leader(self, index: int | None = None) -> float:
-        """Time behind leader (seconds)"""
-
-    @abstractmethod
-    def behind_next(self, index: int | None = None) -> float:
-        """Time behind next place (seconds)"""
+    def last_sector(self, index: int | None = None) -> float:
+        """Last sector time (seconds)"""
 
 
 class Tyre(ABC):
     """Tyre (front left, front right, rear left, rear right)"""
 
     __slots__ = ()
-
-    @abstractmethod
-    def compound_index(self, index: int | None = None) -> tuple[int, ...]:
-        """Tyre compound index set"""
 
     @abstractmethod
     def compound_name(self, index: int | None = None) -> tuple[str, ...]:
@@ -635,7 +606,7 @@ class Vehicle(ABC):
         """Number of incidents"""
 
     @abstractmethod
-    def is_player(self, index: int=0) -> bool:
+    def is_player(self, index: int = 0) -> bool:
         """Is local player"""
 
     @abstractmethod
@@ -655,8 +626,8 @@ class Vehicle(ABC):
         """Driver name"""
 
     @abstractmethod
-    def vehicle_name(self, index: int | None = None) -> str:
-        """Vehicle name"""
+    def team_name(self, index: int | None = None) -> str:
+        """Team name"""
 
     @abstractmethod
     def vehicle_model(self, index: int | None = None) -> str:
@@ -695,12 +666,16 @@ class Vehicle(ABC):
         """Is in paddock (either pit lane or garage), 0 = on track, 1 = pit lane, 2 = garage"""
 
     @abstractmethod
-    def number_pitstops(self, index: int | None = None, penalty: int = 0) -> int:
+    def number_pitstops(self, index: int | None = None) -> int:
         """Number of pit stops"""
 
     @abstractmethod
     def number_penalties(self, index: int | None = None) -> int:
         """Number of penalties"""
+
+    @abstractmethod
+    def penalty_type(self, index: int | None = None) -> int:
+        """Most outstanding penalty type, 0 = no penalty, 1 = drive through, 2 = stop go"""
 
     @abstractmethod
     def pit_request(self, index: int | None = None) -> bool:
@@ -711,10 +686,6 @@ class Vehicle(ABC):
         """Estimated pit stop time (seconds)"""
 
     @abstractmethod
-    def absolute_refill(self) -> float:
-        """Absolute refill fuel (liter) or virtual energy (percent)"""
-
-    @abstractmethod
     def repair_time(self) -> float:
         """Scheduled repair time (seconds)"""
 
@@ -723,7 +694,7 @@ class Vehicle(ABC):
         """Finish state, 0 = none, 1 = finished, 2 = DNF, 3 = DQ"""
 
     @abstractmethod
-    def orientation_yaw_radians(self, index: int | None = None) -> float:
+    def orientation_yaw(self, index: int | None = None) -> float:
         """Orientation yaw (radians)"""
 
     @abstractmethod
@@ -779,7 +750,7 @@ class Vehicle(ABC):
         """Downforce rear (Newtons)"""
 
     @abstractmethod
-    def damage_severity(self, index: int | None = None) -> tuple[int, int, int, int, int, int, int, int]:
+    def damage_severity(self, index: int | None = None) -> tuple[float, ...]:
         """Damage severity, sort row by row from left to right, top to bottom"""
 
     @abstractmethod
@@ -799,10 +770,6 @@ class Vehicle(ABC):
         """Last impact time stamp (seconds)"""
 
     @abstractmethod
-    def impact_magnitude(self, index: int | None = None) -> float:
-        """Last impact magnitude"""
-
-    @abstractmethod
     def impact_position(self, index: int | None = None) -> tuple[float, float]:
         """Last impact position x,y coordinates"""
 
@@ -817,6 +784,18 @@ class Wheel(ABC):
     __slots__ = ()
 
     @abstractmethod
+    def track_front(self, index: int | None = None) -> float:
+        """Wheel track front (millimeters)"""
+
+    @abstractmethod
+    def track_rear(self, index: int | None = None) -> float:
+        """Wheel track rear (millimeters)"""
+
+    @abstractmethod
+    def wheelbase(self, index: int | None = None) -> float:
+        """Wheelbase (millimeters)"""
+
+    @abstractmethod
     def camber(self, index: int | None = None) -> tuple[float, ...]:
         """Wheel camber (radians)"""
 
@@ -827,14 +806,6 @@ class Wheel(ABC):
     @abstractmethod
     def rotation(self, index: int | None = None) -> tuple[float, ...]:
         """Wheel rotation (radians per second), or angular velocity"""
-
-    @abstractmethod
-    def velocity_lateral(self, index: int | None = None) -> tuple[float, ...]:
-        """Lateral velocity (m/s) x"""
-
-    @abstractmethod
-    def velocity_longitudinal(self, index: int | None = None) -> tuple[float, ...]:
-        """Longitudinal velocity (m/s) y"""
 
     @abstractmethod
     def ride_height(self, index: int | None = None) -> tuple[float, ...]:

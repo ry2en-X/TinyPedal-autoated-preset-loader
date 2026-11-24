@@ -26,9 +26,7 @@ import os
 import threading
 from time import sleep
 
-from . import app_signal, overlay_signal, realtime_state
-from .api_control import api
-from .setting import cfg
+from . import api, app_signal, cfg, overlay_signal, realtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -67,14 +65,14 @@ class OverlayControl:
     """Overlay control"""
 
     __slots__ = (
-        "toggle",
-        "_stopped",
         "_event",
         "_last_active_state",
         "_last_hide_state",
         "_last_vehicle_name",
         "_last_vehicle_model",
-    )  
+        "_stopped",
+        "toggle",
+    )
 
     def __init__(self):
         self.toggle = OverlayToggle()
@@ -128,14 +126,14 @@ class OverlayControl:
 
                 # Update auto load state when player enters track
                 if active and cfg.application["enable_auto_load_preset"]:
-                    current_vehicle_name = api.read.vehicle.vehicle_name()
+                    current_vehicle_name = api.read.vehicle.team_name()
                     current_vehicle_model = api.read.vehicle.vehicle_model()
                     self._last_vehicle_name = current_vehicle_name
                     self._last_vehicle_model = current_vehicle_model
 
                     logger.info(
                         "VEHICLE DETECTED: name = %s | model = %s",
-                        api.read.vehicle.vehicle_name(),
+                        api.read.vehicle.team_name(),
                         api.read.vehicle.vehicle_model(),
                     )
 
@@ -146,7 +144,7 @@ class OverlayControl:
 
             # Vehicle change check while already on track
             if active and cfg.application["enable_auto_load_preset"]:
-                current_vehicle_name = api.read.vehicle.vehicle_name()
+                current_vehicle_name = api.read.vehicle.team_name()
                 current_vehicle_model = api.read.vehicle.vehicle_model()
 
                 if (
@@ -176,7 +174,7 @@ class OverlayControl:
     def __check_preset_class(self) -> bool:
         """Check vehicle model-specific preset first, then fall back to class preset."""
 
-        vehicle_name = api.read.vehicle.vehicle_name()
+        vehicle_name = api.read.vehicle.team_name()
         vehicle_model = api.read.vehicle.vehicle_model()
 
         if not vehicle_model:
@@ -317,7 +315,4 @@ class OverlayControl:
 
         # Update preset name & signal reload
         cfg.set_next_to_load(preset_name)
-        app_signal.reload.emit(False)
-
-
-octrl = OverlayControl()
+        app_signal.reload.emit(True)

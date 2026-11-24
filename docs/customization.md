@@ -278,7 +278,7 @@ Data recording is handled by [Fuel Module](#fuel-module).
 ## Consumption history
 Consumption history data is stored as `CSV` format (.consumption extension) under `TinyPedal\deltabest` folder (default). Those files can be opened in spreadsheet or notepad programs.
 
-Consumption history data stores lap time, fuel consumption, battery charge, tyre wear usage data per `track and vehicle class`, which can be loaded in [Fuel Calculator](#fuel-calculator). Up to 100 most recent lap entries are saved per `track and vehicle class`. Data recording is handled by [Fuel Module](#fuel-module).
+Consumption history data stores lap time, fuel consumption, battery charge, tyre wear usage data per `track and vehicle class`, which can be loaded in [Fuel Calculator](#fuel-calculator). Up to `300` most recent lap entries are saved per `track and vehicle class`. Data recording is handled by [Stint Module](#fuel-module).
 
 [**`Back to Top`**](#)
 
@@ -383,7 +383,7 @@ To run multiple copies of TinyPedal at same time: `python .\run.py -s 0` or `.\t
 Single instance mode saves `pid.log` file in the same folder as `tinypedal.log`, which is used for instance identification.
 
     -p, --pyside
-Set PySide (Qt for Python) module version. Set `2` for PySide2 (default). Set `6` for PySide6. Currently, this option is only available while `running from source`, and mainly for testing purpose or used on platform where PySide2 is no longer available.
+Set PySide (Qt for Python) module version. Set `2` for PySide2 (default). Set `6` for PySide6. Note, currently PySide2 is the primary supported version.
 
 [**`Back to Top`**](#)
 
@@ -434,8 +434,68 @@ Additional notes:
 - Backup file is only generated after leaving pit lane. Stint best lap time (if available) will be auto-appended to backup file name after back to garage.
 - Only one backup file of the most recent setup will be generated if no changes were made.
 - Backup file name format:\
-    `[game name]` - `[date & time]` - `[track name]` - `[class name]` - `[brand name]` - `[stint best lap time]`\
-    **If brand name is not available, vehicle name will be used instead.*
+    `[game name]` - `[date & time]` - `[track name]` - `[class name]` - `[vehicle name]` - `[stint best lap time]`
+
+[**`Back to Top`**](#)
+
+
+## Assetto Corsa Competizione API
+**Assetto Corsa Competizione API options can be accessed from `Options` while this API is enabled in `API` menu in main window.**
+
+    access_mode
+Set access mode for API. Mode value `0` uses copy access and additional data check to avoid data desynchronized or interruption issues. Mode value `1` uses direct access, which may result data desynchronized or interruption issues. Default mode is copy access.
+
+    memory_map_prefix
+Set memory map file name prefix for accessing API on Linux.
+
+This option is only provided for compatibility purpose on Linux system, which may be used in conjunction with third party shared memory mapping tools through `wine`.
+
+This option is not used on Windows system. On windows system, the prefix is internally set to `Local\`, changing this option has no effect.
+
+    enable_active_state_override
+Set `true` to enable `active state` manual override. While enabled, `overriding` notification will be shown on API status bar from main window.
+
+    active_state
+This option overrides local player on-track status check, and updates or stops overlay and data processing accordingly. Set `true` to activate state. Set `false` to deactivate state. This option works only when `enable_active_state_override` enabled.
+
+    enable_player_index_override
+Set `true` to enable `player index` manual override.
+
+    player_index
+Set `player index` override for displaying data from specific player. Set value to `-1` for unspecified player.
+
+Note, this option works only when `enable_player_index_override` enabled. This option is automatically set while [Spectate Mode](#spectate-mode) enabled, and should not be set manually.
+
+    character_encoding
+Set character encoding for displaying text in correct encoding. Available encoding: `UTF-8`, `ISO-8859-1`. Default encoding is `UTF-8`.
+
+    enable_udp_api_access
+Enable UDP API accessing, which connects to game's UDP API (known as `Broadcasting Network Protocol`) for accessing additional data that is not available through sharedmemory API.
+
+    udp_api_update_interval
+Set update interval (in milliseconds) for requesting data from UDP API. Default is `200` milliseconds.
+
+Note, minimum update interval is hard-limited to `100` milliseconds.
+
+    url_host
+Set UDP API host address. Default is `127.0.0.1`, and should not be changed.
+
+    url_port
+Set port for UDP API host address. Port value must match `updListenerPort` value that sets in `ACC` (Documents\Assetto Corsa Competizione\Config\broadcasting.json) setting file in order to successfully connect to UDP API and receive data. The default port value for `ACC` is `9000`.
+
+Note, if `updListenerPort` value from game's `broadcasting.json` file is `0`, it requires to manually edit `broadcasting.json` file and set `updListenerPort` value to a valid port value that matches `url_port` option, such as `9000`. After edited `broadcasting.json` file, make sure to restart game to take effect.
+
+    connection_password
+Set connection password for accessing UDP API. Password must match `connectionPassword` value that sets in `ACC` (Documents\Assetto Corsa Competizione\Config\broadcasting.json) setting file in order to successfully connect to UDP API and receive data. Default value is no password (leave it blank).
+
+    connection_timeout
+Set connection timeout duration in seconds for UDP API. Minimum timeout is limited to `1.0` seconds. Default is `60` second. Note, connection may fail if timeout value is set too low.
+
+    connection_retry
+Set number of attempts to retry connection for UDP API. Default is `3` retries.
+
+    connection_retry_delay
+Set time delay in seconds to retry connection for UDP API. Value range in `0.5` to `60`. Default is `3` second.
 
 [**`Back to Top`**](#)
 
@@ -508,6 +568,13 @@ Enable access to `weather` data from Rest API. This is required for showing weat
 
     access_mode
 Set access mode for API. Mode value `0` uses copy access and additional data check to avoid data desynchronized or interruption issues. Mode value `1` uses direct access, which may result data desynchronized or interruption issues. Default mode is copy access.
+
+    memory_map_prefix
+Set memory map file name prefix for accessing RF2 API via alternative plugin version. Make sure to leave this option as blank if you are using the original `rFactor2SharedMemoryMapPlugin64.dll` Plugin.
+
+This option is provided for compatibility purpose, which may be used with alternative RF2 SharedMemory Plugin, such as [RF2.3.8.SharedMemoryMapPlugin.dll](https://github.com/TonyWhitley/rF2SharedMemoryMapPlugin/releases) that used by CrewChief.
+
+Note, to use with `RF2.3.8.SharedMemoryMapPlugin.dll`, set prefix value to `rF2.3.8.`. Remember to update prefix value (with matching version value) if a new version of the plugin DLL file installed in game.
 
     process_id
 Set process ID string for accessing API from server. This option is for server use only.
@@ -739,15 +806,13 @@ Set `true` to enable main application window position correction, which is used 
     enable_x11_platform_plugin_override
 Set Qt platform plugin type to `X11` via environment variable on Linux. This option may help work around some issues with overlay dragging and position on `Wayland`. This option requires restarting TinyPedal to take effect. This option is enabled by default on Linux.
 
+    overlay_combined_mode_opacity
+Set overall overlay opacity, only used when overlay `Combined Mode` is enabled.
+
     background_color_global
 Sets global background color for all widgets.
 
 Note, global background color will only be visible when `enable_translucent_background` option is disabled or translucent background is not supported. Some widgets with own background setting may override this option.
-
-    multimedia_plugin_on_windows
-Set multimedia plugin for playing sound file on windows. Default is using `WMF` plugin.
-
-Note, if the option is set on `DirectShow`, additional audio decoder software may be required to play certain sound formats, such as `MP3`. This option requires restarting TinyPedal to take effect.
 
 [**`Back to Top`**](#)
 
@@ -831,6 +896,22 @@ Enable widget visibility as windows on taskbar in order to be used in VR via APP
 
 Note, you will still need a third party program (such as `OpenKneeboard`) to project overlay windows (widgets) into VR.
 
+    combined_mode
+Enable overlay combined mode for displaying widgets. This option is disabled by default.
+
+While `Combined Mode` disabled, each Widget will be displayed in separate window. This is the default and recommended setting for normal use.
+
+While `Combined Mode` enabled, all Widgets will be combined and drawn in one single maximized window. This may improve performance and compatibility when using `OpenKneeboard` (or similar tool) for displaying overlay in `VR`, and making it easier to project overlay window.
+
+Generally, it is only recommended to enable this option for `VR`, or there is noticeable performance gain while enabled.
+
+**Known issues when enabled Combined Mode:**
+
+* Some widgets may show visual artifacts when displayed on top of other widgets, such as Navigation and Radar Widget.
+* On multi-screen, all widgets will only be displayed on one of the screens. Thus it is not recommended to enable this option for multi-screen.
+* Individual widget's `opacity` option doesn't work. To workaround this issue, a new `overlay_combined_mode_opacity` option is added to `Compatibility` config dialog, which allows to set overall overlay opacity. Note, opacity may not work on Linux.
+* Slightly increase (roughly 10%) in memory and CPU usage due to extra drawing overheads.
+
 [**`Back to Top`**](#)
 
 
@@ -863,6 +944,9 @@ Available units: `kPa`, `psi`, `bar`.
 
     weight_unit
 Available units: `Kilogram`, `Pound`.
+
+    wind_speed_unit
+Available units: `KPH`, `MPH`, `m/s`.
 
 [**`Back to Top`**](#)
 
@@ -911,6 +995,8 @@ Click `Playback Enabled` or `Playback Disabled` button to quickly enable or disa
 
 Click `Enable Playback While in Pit Lane` check box to enable or disable pace notes (that tagged with `#pit`) playback while in pit lane. This option takes immediate effect when changed.
 
+Click `Enable Playback While Spectating` check box to enable or disable pace notes playback while [Spectate Mode](#spectate-mode) enabled. This option takes immediate effect when changed.
+
 Enable `Manually Select Pace Notes File` check box to disable auto-file-name matching, and manually select a pace notes file that can be played on any track. By default, pace notes file is automatically loaded from `pace_notes_path` if a file that matches current track name is found. This option takes immediate effect when changed.
 
 `Sound file path` sets path for loading pace notes sound files that matches name value (exclude file extension) from `pace note` column found in pace notes file. If no sound file found, sound won't be played. This option takes immediate effect when changed.
@@ -953,6 +1039,9 @@ Lock or unlock overlay.
 
     overlay_auto_hide
 Enable or disable overlay auto hide function.
+
+    overlay combined mode
+Enable or disable overlay combined mode.
 
     vr_compatibility
 Enable or disable VR Compatibility.
@@ -1016,15 +1105,17 @@ Enable or disable module.
 
 Fuel value and unit symbol depend on `Fuel Unit` setting from [Units](#units) config dialog, `L` = liter, `gal` = gallon. Virtual energy unit is `%` = percentage. Note, after changed `Fuel Unit` setting, it is required to close and reopen `Fuel calculator` in order to update units info for calculation.
 
-    Calculation panel
+### Calculation panel
+
 On the left side is calculation panel, which handles `fuel` and `virtual energy` usage calculation and results display.
 
 This panel also includes a vertical `pit stop preview` bar on the left, which visualizes pit stops as blue marks and stint laps as grey marks. Each pit stop mark shows a reference lap completion number. Total estimated number of race laps is displayed at bottom of the bar.
 
 Note, when `Energy consumption` value is higher than zero, pit stops and stint laps from preview bar will be calculated based on energy usage. Stint lap mark may not be displayed if there is not enough space to draw.
 
-    Consumption history table
-On the right side is consumption history table, which lists `lap number`, `lap time`, `fuel consumption`, `virtual energy consumption`, `fuel ratio`, `battery drain`, `battery regen`, `battery net change`, `average tyre tread wear`, `tank capacity` columns from [Consumption History](#consumption-history) data. Invalid lap time or consumption data is highlighted in red. Nonessential column can be hidden (or shown) by right-click on table header and select corresponding column name.
+### Consumption history table
+
+On the right side is consumption history table, which lists lap data from [Consumption History](#consumption-history) data. Invalid lap time or consumption data is highlighted in red. Nonessential column can be hidden (or shown) by right-click on table header and select corresponding column name.
 
 Click `Load Live` button to load or update consumption history from live session to history table and automatically fill in latest data to calculator.
 
@@ -1032,12 +1123,52 @@ Click `Load File` button to load data from specific consumption history file to 
 
 Loaded data source and track and class name will be displayed on status bar.
 
-Select one or more `Time`, `Fuel`, `Energy`, `Tyre`, `Tank` values from history table and click `Add selected data` button to send value to calculator.
+Select one or more values from history table and click `Add selected data` button to send value to calculator.
 
 Select multiple values from history table and click `Add selected data` button to calculate average reading of selected values and send to calculator.
 
+    Lap
+Lap number column.
+
+    Stint
+Stint lap number column.
+
+    Time
+Lap time column.
+
+    Fuel
+Fuel consumption column.
+
+    NRG
+Virtual energy consumption (percent) column.
+
+    F/Ratio
+Fuel and virtual energy ratio column.
+
+    Drain
+Battery drain (percent) column.
+
+    Regen
+Battery regen (percent) column.
+
+    B/NET
+Battery net change (percent) column.
+
+    Tyre F, Tyre R
+Highest front and rear tyre tread wear (percent) column.
+
+    Pad F, Pad R
+Highest front and rear brake pad wear (millimeters) column.
+
+    Tank
+Fuel tank capacity column.
+
+### Lap time setting
+
     Lap time
 Set lap time in `minutes` : `seconds` : `milliseconds` format. Values are automatically carried over between spin boxes when exceeded minimum or maximum value range. This value can be retrieved from `Time` column.
+
+### Fuel setting
 
     Tank capacity
 Set vehicle fuel tank capacity. This value can be retrieved from `Tank` column.
@@ -1046,10 +1177,15 @@ Set vehicle fuel tank capacity. This value can be retrieved from `Tank` column.
 Set fuel consumption per lap. This value can be retrieved from `Fuel` column.
 
     Energy consumption
-Set virtual energy consumption per lap. This value can be retrieved from `Energy` column.
+Set virtual energy consumption per lap. This value can be retrieved from `NRG` column.
 
-    Fuel ratio
+    Fuel/Energy ratio
 Show fuel ratio between fuel and virtual energy consumption.
+
+    Starting fuel, Starting energy
+Set amount fuel or energy to carry at the starting of race (first stint). This value affects `Total race fuel (or energy)` and `Total pit stops` calculation, and is used for calculating `Average refueling` or `Average replenishing` per pit stop. Maximum value cannot exceed `Tank capacity` for fuel (or `100%` for energy). If value is set to `0` (default), `Tank capacity` value will be used as starting fuel (or `100%` for starting energy) for `Average refueling` calculation.
+
+### Race setting
 
     Race minutes
 Set race length in minutes for time-based race. Note, option is disabled if `Race laps` is set.
@@ -1063,46 +1199,57 @@ Set number of formation or rolling start laps.
     Average pit seconds
 Set average pit stop time in seconds.
 
+### Fuel usage tab
+
     Total race fuel, Total race energy
 Show total required fuel or energy to finish race. First value is raw reading with decimal places, second value behind `≈` sign is rounded up integer reading.
-
-    End stint fuel, End stint energy
-Show remaining fuel or energy at the end of stint.
 
     Total pit stops
 Show total number of pit stops required to finish race. First value is raw reading with decimal places, second value behind `≈` sign is rounded up integer reading.
 
 Note, sometimes when `Average pit seconds` is set to longer duration, ceiling integer reading may be rounded up `2` units higher than raw reading, this is not an error. For example, it may show `5.978 ≈ 7` instead of `5.978 ≈ 6`, this is because when calculating from `6` pit stops, due to less amount time spent in pit stop compare to `7`, more fuel is required per pit stop which would exceed tank capacity, hence calculator adds 1 more pit stop.
 
-    One less pit stop
-Show theoretical fuel or energy consumption in order to make one less pit stop.
-
-    Total laps, Total minutes
-Show total laps and minutes can run based on `Total race fuel` or `Total race energy` value.
+    Total race laps, Total race minutes
+Show total race laps and minutes can be completed based on `Total race fuel` or `Total race energy` value.
 
     Maximum stint laps, Maximum stint minutes
 Show maximum laps and minutes can run per stint based on `Tank capacity` value (or 100% capacity for virtual energy).
 
-    Starting fuel, Starting energy
-Set amount fuel or energy to carry at the starting of race (first stint). This value affects `Total race fuel (or energy)` and `Total pit stops` calculation, and is used for calculating `Average refueling` or `Average replenishing` per pit stop. Maximum value cannot exceed `Tank capacity` for fuel (or `100%` for energy). If value is set to `0` (default), `Tank capacity` value will be used as starting fuel (or `100%` for starting energy) for `Average refueling` calculation.
+    Final stint laps
+Show number of laps to complete on the final stint.
+
+    End stint fuel, End stint energy
+Show remaining fuel or energy at the end of stint.
+
+    One less pit stop
+Show theoretical fuel or energy consumption in order to make one less pit stop.
 
     Average refueling, Average replenishing
 Show average refueling or replenishing per pit stop, and display warning color if value exceeds `Tank capacity` (fuel) or `100%` (energy).
 
-    Starting tyre tread
-Set average starting tyre tread (percent). For example, 100% for new tyres, and less for worn tyres.
+### Wear rate tab
 
-    Tread wear per lap
-Set average tyre tread wear (percent) per lap. This value can be retrieved from `Tyre` column.
+    Starting tyre life, Starting pad life
+Set starting tyre or brake pad life (percent). For example, 100% for new tyres, and less for worn tyres.
 
-    Tread wear per stint
-Show total average tyre tread wear (percent) per stint. Note, while virtual energy is available, this value will be calculated based on the least `maximum stint laps` between fuel and virtual energy.
+    Percent wear per lap
+Set wear (percent) per lap. For tyre wear, this value can be retrieved from `Tyre` column.
+
+    Percent wear per stint
+Show total wear (percent) per stint. Note, while virtual energy is available, this value will be calculated based on the least `maximum stint laps` between fuel and virtual energy.
 
     Lifespan laps, Lifespan minutes
-Show total tyre lifespan in laps and minutes based on `tread wear per lap` and `lap time`.
+Show total lifespan in laps and minutes based on `wear per lap` and `lap time`.
 
     Lifespan stints
-Show estimated tyre lifespan in number of stints. Note, while virtual energy is available, this value will be calculated based on the least `maximum stint laps` between fuel and virtual energy.
+Show estimated lifespan in number of stints. Note, while virtual energy is available, this value will be calculated based on the least `maximum stint laps` between fuel and virtual energy.
+
+    Brake pad thickness, Millimeter wear per lap
+Set effective brake pad thickness and wear per lap (millimeters) for calculating `Percent wear per lap`. Millimeter wear per lap value can be retrieved from `Pad` column.
+
+For LMU, `effective effective` = `brake thickness` - `failure thickness`.
+
+See Wiki Appendix for common vehicle's brake thickness reference table.
 
 [**`Back to Top`**](#)
 
@@ -1168,31 +1315,21 @@ For brand logo image preparation, see [Brand Logo](#brand-logo) section.
 
 `Brand name` is custom brand name.
 
-Note, brands data are automatically imported for `LMU` while driving, there is no need to manually import them. However it is required to manually import for `RF2`.
+Note, brands data are automatically imported for `LMU` while driving. However it is required to manually import for `RF2`.
 
-To import vehicle brand data from `Rest API`, click `Import from` menu, and select either `RF2 Rest API` or `LMU Rest API`. Note, game updates may introduce new vehicles, it is recommended to re-import after each game update to keep brand info updated.
+To import RF2 vehicle brand data, click `Import from` menu, and select `RF2 Rest API`. Note, updating game or installing mods may introduce new vehicles, which may require to re-import.
 
-Note, there are currently two sources for importing from `LMU Rest API`:
-- Primary: allows to import brands from both original and custom vehicle skins.
-- Alternative: may allow to import some brands that are missing from Primary source. This is normally not required.
-
-**Important notes**
+**Additional notes**
 
 Game must be running in order to import from `Rest API`. Newly imported data will be appended on top of existing data, existing data will not be changed.
 
-If importing fails while game is running, check if `URL Port` option in `RestAPI` module that matches `WebUI port` value that sets in `LMU` (UserData\player\Settings.JSON) or `RF2` (UserData\player\player.JSON) setting file. See [Telemetry API](#telemetry-api) section for details.
+If importing fails while game is running, check if `URL Port` option in `RestAPI` module that matches `WebUI port` value that sets in `RF2` (UserData\player\player.JSON) setting file. See [Telemetry API](#telemetry-api) section for details.
 
 Alternatively, to import vehicle brand data from vehicle `JSON` file, click `Import from` menu, and select `JSON file`.
 
     How to manually export vehicle brand data from RF2 Rest API:
     1. Start RF2, then open following link in web browser:
     localhost:5397/rest/race/car
-    2. Click "Save" button which saves vehicle data to JSON file.
-
-    How to manually export vehicle brand data from LMU Rest API:
-    1. Start LMU, then open following link in web browser:
-    localhost:6397/rest/race/car
-    localhost:6397/rest/sessions/getAllVehicles
     2. Click "Save" button which saves vehicle data to JSON file.
 
     Note: importing feature is experimental. Maximum acceptable JSON file size is limited to "5MB".
@@ -1268,6 +1405,8 @@ Track info editor is used for editing [Tracks Preset](#tracks-preset). Note, any
 `Pit speed (m/s)` column is pit lane speed limit (in meters per second). This value is automatically recorded or updated by [Mapping Module](#mapping-module). Note, vehicle pit limiter must be activated while in pit lane to allow recording speed limit.
 
 `Speed trap (m)` column is speed trap position (in meters) relative to track length. To manually set speed trap position at your current on-track position, `Right-Click` on corresponding track's speed trap column and select `Set from Telemetry`.
+
+`Orient (°)` column sets display orientation angle (in degrees) for [Track Map](#track-map-1) widget, which allows custom map orientation for individual map without having to switch and config different presets. This option is additive to `display_orientation` option in Track Map widget.
 
 `Sunrise` column is sunrise hour in `Hour:Minute` format. This value has to be manually defined.
 
@@ -1351,13 +1490,17 @@ To load a track map, click `Load Map` button. Map file name will be displayed al
 
 To customize map display, click `Config` button. Note, some display options may require reload track map file to be updated.
 
+To move map view, click and drag the map in map display area.
+
 To zoom map in or out, scroll mouse wheel in map display area; or adjust `Zoom` spin box value.
 
 To move current position on map, use position slider at bottom of map display; or adjust `Position` spin box value.
 
 To increase or decrease current nodes selection, adjust `Nodes` spin box value. Note, minimum nodes selection is limited to `3` nodes, maximum nodes selection cannot exceed total map nodes.
 
-To toggle on or off specific map display, `Right-Click` on map display area to open context menu, includes:
+To reset map view, or toggle specific map display, `Right-Click` on map display area to open context menu:
+* Reset map view - Reset map view to center of display.
+* Reset map zoom - Reset map zoom to `1.0`.
 * Map info - Show map length, total map nodes.
 * Position info - Show current node position and global XYZ coordinates (Z is elevation).
 * Curve info - Show curve section length, grade, radius, angle, curvature.
@@ -1606,6 +1749,9 @@ Set minimum recording distance (in meters) between each battery charge usage sam
     module_mapping
 Enable mapping module.
 
+    minimum_node_distance
+Set minimum recording distance (in meters) between each map node sample. Default value is `5` meters. Lower value may result more samples recorded and bigger file size; higher value may result less samples recorded and inaccuracy. Recommended value range in `5` to `10` meters.
+
 [**`Back to Top`**](#)
 
 
@@ -1713,6 +1859,11 @@ Unlike `Time` based race, finish criteria in `Laps & Time` based race is determi
 ## Wheels module
 **This module provides wheel radius, slip ratio, tyre wear, brake wear, suspension travel, vehicle weight data.**
 
+    enable_wheel_dimension_measurement
+Enable real time wheel dimension measurement and calculation for tyre radius, wheel track, wheelbase.
+
+Note, wheel track and wheelbase measurement is only available for `ACC`.
+
     minimum_axle_rotation
 Set minimum axle rotation (radians per second) for calculating wheel radius and differential locking percent. Default value is `4`.
 
@@ -1723,7 +1874,10 @@ Set maximum rotation difference between left or right wheel rotation and same ax
 Set percentage threshold for counting wheel lock duration under braking. `0.3` means 30% of tyre slip ratio.
 
     minimum_delta_distance
-Set minimum recording distance (in meters) between each tyre wear sample. Default value is `5` meters. Lower value may result more samples recorded and bigger file size; higher value may result less samples recorded and inaccuracy. Recommended value range in `5` to `10` meters.
+Set minimum recording distance (in meters) between each tyre or brake wear sample. Default value is `5` meters. Lower value may result more samples recorded and bigger file size; higher value may result less samples recorded and inaccuracy. Recommended value range in `5` to `10` meters.
+
+    minimum_brake_failure_detection_time
+Set minimum detection time (seconds) for detecting brake failure while under braking. Default is `3` seconds. Minimum detection time is limited to `1` second.
 
     enable_suspension_measurement_while_offroad
 Enable suspension travel measurement while vehicle is offroad. This option should be disabled for road racing for more accurate suspension measurement. This option is disabled by default.
@@ -1769,7 +1923,7 @@ Note, timing precision is limited by `game API` and `update_interval`, which may
 Set column horizontal display order. Set `0` to show from left to right. Set `1` to show from right to left instead.
 
     speed_range_*_start, speed_range_*_end
-Set the start and end target speed values for measuring acceleration time. Speed value is defined in meter per second, and displayed according [Speed Units](#units) setting. To hide specific slot, set both target speed values to `0`.
+Set the start and end target speed values for measuring acceleration time. Speed value is defined in meters per second, and displayed according [Speed Units](#units) setting. To hide specific slot, set both target speed values to `0`.
 
 Note, to properly count acceleration from `0` start speed, set slightly higher value such as `0.6` instead of '0', because vehicle in game will not be sitting perfectly still at 0 speed while stopped.
 
@@ -1837,20 +1991,7 @@ Set `true` to show percentage sign for brake bias value.
 Show delta between current and baseline brake bias, which can be useful for keeping track of brake bias changes easier during a long race. Baseline brake bias is automatically set (and reset) while vehicle is stationary in pit lane or stationary during formation lap.
 
     show_brake_migration
-Show real-time brake migration change, as commonly seen in LMH and LMDh classes.
-
-Note, brake migration is calculated based on brake input and brake pressure telemetry data, and is affected by pedal force setting from car setup and electric braking allocation of specific vehicle.
-
-To get accurate brake migration reading, it is necessary for brake pedal to reach fully pressed state for at least once while entering track to recalibrate brake pressure scaling for brake migration calculation. It is normally not required to do manually, as game's auto-hold brake assist is on by default. However if auto-hold brake assist is off, or the APP was reloaded while player was already on track, then it is required to do a full braking for at least once to get accurate brake migration reading.
-
-    electric_braking_allocation
-Set allocation for calculating brake migration under different electric braking allocation from specific vehicle. Note, vehicle that has not electric braking, or has disabled regeneration, is not affected by this option. Incorrect allocation value will result wrong brake migration reading from vehicle that has electric braking activated.
-
-Set value to `-1` to enable auto-detection, which automatically checks whether electric braking is activated on either axles while braking, and sets allocation accordingly. This is enabled by default. Note, it may take a few brakes to detect correct allocation.
-
-Set value to `0` to manual override and use front allocation, which is commonly seen in LMH class.
-
-Set value to `1` to manual override and use rear allocation, which is commonly seen in LMDh class.
+Show brake migration change in percentage, as commonly available on LMH and LMDh classes.
 
 [**`Back to Top`**](#)
 
@@ -1929,7 +2070,7 @@ Set duration (seconds) for continuously updating average brake temperature for a
 2 layouts are available: `0` = vertical layout, `1` = horizontal layout.
 
     show_thickness
-Show brake thickness (millimeter) instead of percentage, which also affects wear difference readings.
+Show remaining brake thickness (millimeter).
 
 Note, brake maximum thickness (for percentage wear calculation) is retrieved at the moment when car leaves garage or has brake repaired or changed. Reloading a preset or restarting APP in the middle of a running stint could result wrong maximum thickness and percentage wear calculation, which should be avoided.
 
@@ -1941,16 +2082,10 @@ For example, if `brake thickness` is `40`mm, and `failure thickness` is `25`mm, 
 
 Since brake failure thickness threshold data is not available from game API, it requires testing to find out, and may vary from vehicle to vehicle. Front brake failure thickness threshold can be different from rear brake. Thickness threshold value should not exceed brake maximum thickness, otherwise brake wear readings will not be displayed correctly.
 
-Note, failure thickness values are automatically saved to `brakes.json` preset when brakes failed, and most recent brake failures are logged and can be found in [Show Log](#console-log) dialog from `Help` menu.
-
-**Tips for testing failure thickness:**
-
-Before start, make sure vehicle brand data is imported via [Vehicle Brand Editor](#vehicle-brand-editor). This is necessary to save brake failure thickness settings per vehicle brand.
-
-First, set all `brake duct` settings to `closed` in car setup, then keeps brakes on while driving at around 100kph speed until brakes failed (use brake bias to control front and rear wear rate), and failure thickness value will be automatically saved for this vehicle. Be aware that testing may take a very long time for some vehicles.
+See Wiki Appendix for common vehicle's brake thickness reference table.
 
     show_remaining
-Show total remaining brake in percentage that changes color according to wear. A `FAIL` text will be shown on failed brakes.
+Show remaining brake thickness in percentage that changes color according to wear. A `FAIL` text will be shown on failed brakes.
 
     show_wear_difference
 Show estimated brake wear difference per lap (at least one valid lap is required).
@@ -1975,6 +2110,35 @@ Set warning threshold for estimated brake lifespan in laps. Default is `5` laps.
 
     warning_threshold_minutes
 Set warning threshold for estimated brake lifespan in minutes. Default is `5` laps.
+
+[**`Back to Top`**](#)
+
+
+## Class fields
+**This widget displays number of active, inactive, and total vehicles for each vehicle class in a session.**
+
+Each field shows class name, followed by number of active vehicles (on track or in pit lane) and total vehicles in class, for example `GT3 12/18`. Field background color follows class color from [Vehicle Class Editor](#vehicle-class-editor). Fields are sorted by class leader's overall position.
+
+    layout
+0 = vertical layout (one class per row), 1 = horizontal layout (all classes in one row).
+
+    maximum_classes
+Set maximum number of class fields to display. Valid range is `2` to `20`. Default is `5`.
+
+    class_width
+Set class name display width in characters. Longer class names are truncated, it is recommended to set short class alias in [Vehicle Class Editor](#vehicle-class-editor). Default is `4`. Set to `0` to hide class name.
+
+    background_color_class_field
+Set fallback background color for vehicles without class name.
+
+    show_active_count
+Show number of active vehicles (on track or in pit lane) in class. Vehicles that are in garage, DNF or DQ are not counted as active.
+
+    show_total_count
+Show total vehicles in class.
+
+    show_inactive_count
+Show number of inactive vehicles (in garage, DNF, DQ) in class. This option is disabled by default.
 
 [**`Back to Top`**](#)
 
@@ -2013,6 +2177,9 @@ Show distance into current lap.
 6. Wheel detached (default color: black).
 
 Note, body aero integrity and suspension damage display is only available for `LMU`.
+
+    global_scale
+Set global scale of damage display. Default is `1.0`. Minimum scale is limited to `0.1`.
 
     display_margin
 Set display margin in pixels.
@@ -2280,15 +2447,6 @@ Show player's current position line mark.
     layout
 2 layouts are available: `0` = vertical layout, `1` = horizontal layout.
 
-    show_oil_temperature
-Show oil temperature.
-
-    show_water_temperature
-Show water temperature.
-
-    overheat_threshold_oil, overheat_threshold_water
-Set temperature threshold for oil and water overheat color indicator, unit in Celsius.
-
     show_turbo_pressure
 Show turbo pressure.
 
@@ -2307,6 +2465,12 @@ Show engine power.
     show_power_to_weight_ratio
 Show estimated (maximum recorded) power to (current) weight ratio. Final reading is affected by power and weight units setting, and resets after returning to garage. The accuracy depends on game API data, and may not be available on certain vehicles.
 
+    show_drive_ratio
+Show drive ratio between engine and drive wheel rotational speed.
+
+    drive_wheel_allocation
+Set drive wheel allocation. `0` for rear-wheel drive (default). `1` for front-wheel drive. `2` for all-wheel drive (calculated as simple average of all 4 wheels rotational speed).
+
 [**`Back to Top`**](#)
 
 
@@ -2319,8 +2483,11 @@ Show oil temperature.
     show_water_temperature
 Show water temperature.
 
-    overheat_threshold_oil, overheat_threshold_water
-Set temperature threshold for oil and water overheat color indicator, unit in Celsius.
+    show_exhaust_temperature
+Show exhaust temperature. This option only works for `ACC`.
+
+    overheat_threshold_*
+Set temperature threshold for overheat color indicator, unit in Celsius.
 
     show_rate_of_change
 Show temperature rate of change for a specific time interval.
@@ -2344,10 +2511,10 @@ Show temperature net change per lap.
 2 layouts are available: `0` = vertical layout, `1` = horizontal layout.
 
     show_pit_timer
-Show pit timer, and total amount time spent in pit after exit pit.
+Show pit timer, and total amount time spent in pit after exiting pit.
 
     pit_time_highlight_duration
-Set highlight duration for total amount time spent in pit after exit pit.
+Set highlight duration for total amount time spent in pit after exiting pit.
 
     pit_in_text, pit_out_text, pit_closed_text
 Set custom text for pit in, out, closed.
@@ -2440,6 +2607,17 @@ Show scheduled repairs notification and estimated repair time when damage repair
 
     scheduled_repairs_text
 Set custom text for scheduled repairs.
+
+    show_speeding_in_pit
+Show warning indication when speeding in pit lane. First value shows maximum speed exceeded above pit lane speed limit. Second value shows total speeding time in seconds.
+
+    speeding_highlight_duration
+Set highlight duration for displaying speeding indication after exiting pit.
+
+    pit_lane_speed_limit
+Set pit lane speed limit (in KPH) for detecting speeding. Default value is `60` KPH.
+
+Note, since game API does not provide speed limit info, this option must be set manually to detect speeding correctly. Different games or tracks may have different speed limit.
 
 [**`Back to Top`**](#)
 
@@ -2885,7 +3063,7 @@ Set size of instrument icon in pixel. Minimum value is limited to `16`.
 Show headlights state.
 
     show_ignition
-Show engine ignition, starter, stalling state.
+Show engine off, ignition, stalling state.
 
     stalling_rpm_threshold
 Set RPM threshold for triggering engine stalling warning. Default is `100` RPM.
@@ -2937,7 +3115,7 @@ Show your current overall position against all drivers in a session.
 Show your current position in class against all drivers from the same class.
 
     show_track_limits_points
-Show current track cut points against total track limits points per penalty.
+Show current track cut points against total track limits points per penalty. This option only works for `LMU`.
 
     show_position_change
 Show overall driver position change relative to overall qualification position.
@@ -2965,6 +3143,17 @@ Show empty lap time history. Default is `false`, which hides empty rows.
     show_laps
 Show lap number.
 
+    laps_width
+Set maximum display width for lap number. Value range in `1` to `4`. Default is `3`.
+
+This option can be used to limit column display width by stripping off unnecessary leading zeros. For example, if you know a race would never exceed `99` total laps, then you could set width to `2`. But if a race could exceed `100` total laps, then you should set width to `3` to avoid stripping off number from hundred place.
+
+    show_stint_laps
+Show stint lap number.
+
+    stint_laps_width
+Set maximum display width for stint lap number. Value range in `1` to `4`. Default is `2`.
+
     show_time
 Show lap time.
 
@@ -2972,7 +3161,7 @@ Show lap time.
 Show lap time delta between two consecutive laps.
 
     show_fuel
-Show fuel consumption per lap.
+Show fuel consumption.
 
     show_virtual_energy_if_available
 Show virtual energy consumption instead of fuel consumption if available. This option is enabled by default.
@@ -2984,7 +3173,10 @@ Show fuel (or virtual energy) unit sign. `L` for liter, `G` for Gallon, `E` for 
 Show fuel ratio between fuel and energy consumption.
 
     show_wear
-Show average tyre wear (percent) per lap.
+Show average tread wear (percent) of all tyres.
+
+    show_highest_wear
+Show highest tread wear of all tyres instead of average wear. This option is disabled by default.
 
     show_wear_sign
 Show tyre wear percentage sign.
@@ -3146,6 +3338,9 @@ Show current front anti-roll bar level.
     show_rear_arb
 Show current rear anti-roll bar level.
 
+    show_wiper_state
+Show wiper state.
+
 [**`Back to Top`**](#)
 
 
@@ -3285,7 +3480,7 @@ Show number of vehicles that requested for pit stop, and number of vehicles curr
 **This widget displays vehicle radar info.**
 
     global_scale
-Sets global scale of radar display. Default is `6`, which is 6 times of original size.
+Set global scale of radar display. Default is `6`, which is 6 times of original size.
 
     radar_radius
 Set the radar display area by radius(unit meter). Default is `30` meters. Minimum value is limited to `5`.
@@ -3406,8 +3601,10 @@ The three values define an invisible rectangle area(unit meter) that hides any v
 ## Rake angle
 **This widget displays vehicle rake angle info.**
 
+Note, for `ACC`, it is required to configure `static_height_front`, `static_height_rear` options in [Ride Height](#ride-height) Widget to correctly calculate rake estimates.
+
     wheelbase
-Set wheelbase in millimeters. Default is `2800` millimeters. This option affects `rake angle` calculation accuracy.
+Set wheelbase in millimeters, which will only be used if wheelbase data is not available from game API. Default is `2800` millimeters. This option affects `rake angle` calculation accuracy.
 
     rake_angle_smoothing_samples
 Set number of samples for reducing data fluctuation. Lower value may result more fluctuated reading. Set `1` to disable smoothing.
@@ -3454,11 +3651,10 @@ Set driver name to uppercase.
     driver_name_width
 Set drive name display width, value in chars, such as 10 = 10 chars.
 
-    driver_name_align_center
-Align driver name in the center when enabled. Default is left alignment when disabled.
-
     show_vehicle_name
-Show vehicle name. Note, game API outputs `skin livery name` as `vehicle name`, which means actual displayed name depends on what skin livery name is called. For example, some vehicles may add `team name` and/or `class name` in `skin livery name`, some may not.
+Show vehicle model name.
+
+Note, some game may show `skin livery name` as `vehicle name`, which means actual displayed name depends on what skin livery name is called. For example, some vehicles may add `team name` and/or `class name` in `skin livery name`, some may not.
 
     show_vehicle_brand_as_name
 Show vehicle brand name instead of vehicle name. If brand name does not exist, vehicle name will be displayed instead.
@@ -3468,9 +3664,6 @@ Set vehicle name to uppercase.
 
     vehicle_name_width
 Set vehicle name display width, value in chars, such as 10 = 10 chars.
-
-    vehicle_name_align_center
-Align vehicle name in the center when enabled. Default is left alignment when disabled.
 
     show_brand_logo
 Show user-defined brand logo if available.
@@ -3486,9 +3679,6 @@ Show plus or minus sign for time gap. `-` sign indicates opponent's relative pos
 
     time_gap_width
 Set time gap display width, value is in chars, 5 = 5 chars wide.
-
-    time_gap_align_center
-Align time gap in the center when enabled. Default is right alignment when disabled.
 
     show_highlighted_nearest_time_gap
 Show highlighted color on opponents within nearest time gap threshold.
@@ -3534,6 +3724,13 @@ Set custom yellow flag status text which shows when driver causes (or likely to)
     finish_status_text
 Set custom finish (checkered flag) status text which shows when driver finished race.
 
+    drive_through_status_text, stop_go_status_text, disqualify_status_text
+Set drive through, stop go, disqualify penalty status text which shows when driver receives penalty.
+
+Note, penalty type only works for `LMU`. Only one of the most outstanding penalty types is displayed at a time. For example, stop go penalty will be displayed over drive through penalty while having both penalties.
+
+Due to some limitations in game API, penalty type data will not be preserved after restarted or reloaded overlay during a session.
+
     show_tyre_compound
 Show tyre compound symbol for tyre that matches specific tyre compounds defined in `compounds.json` preset.
 
@@ -3556,11 +3753,17 @@ Show each driver's pit stop count and penalty count if available. Note, when a d
     show_pit_request
 Show pit request color indicator on pit stop count column.
 
-    show_vehicle_in_garage
-Show vehicles parked in garage stall. Default is `false`. Note, local player is always displayed.
-
     additional_players_front, additional_players_behind
 Set additional players shown on relative list. Each value is limited to a maximum of 60 additional players (for a total of 120 additional players). Default is `0`.
+
+    show_caption
+Show caption row on top of table columns. Caption may expand column width to fit caption text. Caption alignment follows corresponding column text alignment option.
+
+    caption_text_*
+Set caption text for each column. Set to `""` (blank) to show caption background only, which is default for self-explanatory columns such as position, driver name, brand logo.
+
+    caption_text_title
+Set title text that displayed across leading columns with empty caption text, such as position, brand logo, driver name columns. Default is widget name. Set to `""` (blank) to disable.
 
 [**`Back to Top`**](#)
 
@@ -3712,6 +3915,11 @@ Set prediction pit time for leader or local player.
     ride_height_maximum_range
 Set visualized maximum ride height display range (millimeter).
 
+    static_height_front, static_height_rear
+Set static front and rear ride height (in millimeters) for calculating Ride Height, [Rake Angle](#rake-angle), and [Roll Angle](#roll-angle) estimates. These options are only used for `ACC`, and shared with Rake angle and Roll angle Widget.
+
+Note, both options have to be manually set according to the ride height values from car setup `Aero` page to get correct ride height and rake estimates in `ACC`.
+
     bottoming_height_*
 Set bottoming ride height (in millimeters). This option is used for vehicle that hits ground before ride height reading reaches zero.
 
@@ -3723,9 +3931,6 @@ Set bottoming ride height (in millimeters). This option is used for vehicle that
 
 Note, most options are inherited from [Relative](#relative) and [Standings](#standings) widgets, with some additions noted below.
 
-    time_interval_align_center
-Align time interval in the center when enabled. Default is right alignment when disabled.
-
     *_color_time_interval_ahead, *_color_time_interval_behind
 Set custom time interval color of opponent ahead and behind.
 
@@ -3735,11 +3940,13 @@ Set custom time interval color of opponent ahead and behind.
 ## Roll angle
 **This widget displays vehicle front and rear roll angles info.**
 
+Note, for `ACC`, it is required to configure `static_height_front`, `static_height_rear` options in [Ride Height](#ride-height) Widget to correctly calculate rake estimates.
+
     show_degree_and_percentage_sign
 Set `true` to show degree and percentage sign.
 
     wheel_track_front, wheel_track_rear
-Set front and rear wheel track in millimeters. Default is `1800` millimeters. This option affects `roll angle` calculation accuracy.
+Set front and rear wheel track in millimeters, which will only be used if wheel track data is not available from game API. Default is `1800` millimeters. This option affects `roll angle` calculation accuracy.
 
     roll_angle_smoothing_samples, roll_angle_ratio_smoothing_samples
 Set number of samples for reducing data fluctuation. Lower value may result more fluctuated reading. Set `1` to disable smoothing.
@@ -3860,6 +4067,15 @@ Set visualized maximum slip angle display range (degrees). Default is `15` degre
 Set minimum slip angle difference threshold (in degrees) for neutral steer, oversteer and understeer color indication.
 
 Note, value should be set as negative angle for oversteer, and positive angle for understeer.
+
+    show_peak_slip_angle_under_maximum_lateral_g
+Visualize peak slip angle range under recent maximum lateral acceleration. Note, peak slip angle range auto-recalibrates itself over time.
+
+    show_peak_slip_angle_reading
+Show peak slip angle reading under recent maximum lateral acceleration.
+
+    peak_slip_angle_padding
+Set horizontal padding for displaying peak slip angle reading alongside slip angle padding.
 
 [**`Back to Top`**](#)
 
@@ -3994,11 +4210,14 @@ Show remaining virtual energy reading in percentage from each driver, with 4 dif
 Note, for vehicle without virtual energy, remaining fuel (only if available) will be displayed instead. If fuel data is not available from game API, then nothing will be displayed.
 
     energy_remaining_decimal_places
-Set additional decimals to be displayed.
+Set additional decimals to be displayed. Note, decimal place accuracy depends on game API data accuracy, which may have certain amount margin of error.
 
-**Important notes on decimal place accuracy:**
+    show_energy_usage, show_last_energy_usage, show_average_energy_usage
+Show last lap and average five laps energy usage.
 
-Currently due to known limitation from game API (as explained in User Guide), energy remaining readings from game API does not grant decimal place accuracy. The margin of error from this option can be as high as 1.0% per lap, which may not provide more accuracy than without decimals.
+Note, both `show_last_energy_usage` and `show_average_energy_usage` options are optional. However if both options are disabled, last lap energy usage will be displayed instead.
+
+For vehicle without virtual energy, fuel usage (only if available) will be displayed instead.
 
     show_vehicle_integrity
 Show opponent vehicle integrity reading.
@@ -4015,6 +4234,9 @@ Note, incidents are counted from vehicle contacts and track cuts only for each i
 
     incidents_high_threshold, incidents_extreme_threshold
 Set threshold for showing color indication when number of incidents are equal or above.
+
+    show_track_limits_points
+Show driver's current track limits points. This option only works for `LMU`.
 
     show_speed_trap
 Show fastest recorded speed of each driver per lap at user-defined speed trap position on track. This option can be useful to keep track of each driver's straight line performance from most recent lap.
@@ -4037,10 +4259,10 @@ Set minimum time threshold (in seconds) for highlighting lift and coast time. De
 **This widget displays steering and wheel angle info.**
 
     wheel_track_front
-Set front wheel track in millimeters. Default is `1800` millimeters. This option affects `Ackermann percentage` calculation accuracy.
+Set front wheel track in millimeters, which will only be used if wheel track data is not available from game API. Default is `1800` millimeters. This option affects `Ackermann percentage` calculation accuracy.
 
     wheelbase
-Set wheelbase in millimeters. Default is `2800` millimeters. This option affects `Ackermann percentage` and `turning radius` calculation accuracy.
+Set wheelbase in millimeters, which will only be used if wheelbase data is not available from game API. Default is `2800` millimeters. This option affects `Ackermann percentage` and `turning radius` calculation accuracy.
 
     show_steering_angle
 Show steering angle in degrees.
@@ -4884,22 +5106,12 @@ Show rain precipitation in percentage.
 Show average surface wetness in percentage.
 
     show_rubber_coverage_while_dry
-Show rough estimate of rubber coverage (percent) based on total number of laps done by all drivers while road surface is dry.
+Show rubber coverage (grip level) in percentage while road surface is dry.
 
-Note, rubber coverage reading may not be accurate during `practice session` in multiplayer, as some API data will be lost or reset while people joining or leaving server. This does not affect `qualifying` and `race` session.
-
-| Rubber Coverage | Equivalent Grip | Equivalent Laps (LMU) | Equivalent Laps (RF2) |
-|:-:|:-:|:-:|:-:|
-| 0.0 (0%) | Green | 0+ | 0+ |
-| 0.25 (25%) | Light | 600+ | 300+ |
-| 0.5 (50%) | Medium |  1200+ | 600+ |
-| 0.75 (75%) | Heavy (High) | 2000+ (Median) | 1000+ (Median) |
-| 1.0 (100%) | Saturated | 4000+ | 2000+ |
-
-**Note, all data from above table are rough estimate based on testing.*
+Note, if grip level data is not available from game API, rubber coverage will be calculated based on total number of laps done by all drivers, which may not be accurate during `practice session` in multiplayer, as some API data will be lost or reset while people joining or leaving server. This does not affect `qualifying` and `race` session. See Wiki Appendix `Rubber Coverage Table` section for reference.
 
     rubber_median_laps
-Set median laps at the point when grip becomes `Heavy (High)` for calculating accurate rubber coverage. Default median laps is `2000`. This value may vary from different games, see above table for reference.
+Set median laps at the point when grip becomes `Heavy (High)` for calculating accurate rubber coverage. Default median laps is `2000`. This value may vary from different games, see `Rubber Coverage Table` for reference.
 
     rubber_time_scale_*
 Set time scale multiplier for calculating rubber coverage in corresponding sessions (practice, qualifying, race). This value should match `Realroad Time Scale` session setting from game. For `static` rubber, set time scale to `0`.
@@ -4992,6 +5204,23 @@ Set number of samples for reducing data fluctuation. Lower value may result more
 [**`Back to Top`**](#)
 
 
+## Wheel dimension
+**This widget displays wheel dimension info.**
+
+Note, `enable_wheel_dimension_measurement` must be enabled in [Wheels Module](#wheels-module) to calculate wheel dimension.
+
+    show_front_tyre_radius, show_rear_tyre_radius
+Show average front and rear tyre radius (in millimeters) measured in real time.
+
+    show_front_wheel_track, show_rear_wheel_track
+Show front and rear wheel track (in millimeters) measured in real time. Note, currently only `ACC` provides wheel track data.
+
+    show_wheelbase
+Show wheelbase (in millimeters) measured in real time. Note, currently only `ACC` provides wheelbase data.
+
+[**`Back to Top`**](#)
+
+
 ## Wheel toe
 **This widget displays wheel toe angle info.**
 
@@ -5005,5 +5234,56 @@ Show total toe angle between left and right wheel on the same axle, useful for q
 
     toe_in_smoothing_samples, total_toe_angle_smoothing_samples
 Set number of samples for reducing data fluctuation. Lower value may result more fluctuated reading. Set `1` to disable smoothing.
+
+[**`Back to Top`**](#)
+
+
+## Wind direction
+**This widget displays wind direction and speed info.**
+
+Note, wind arrow and direction marks are displayed relative to player's vehicle heading.
+
+Currently this widget only works for `ACC`. `RF2` and `LMU` do not have wind simulation, wind speed is always zero.
+
+    display_size
+Set widget display size in pixels.
+
+    display_margin
+Set widget display margin in pixels.
+
+    wind_arrow_scale_*
+Set wind arrow size scale.
+
+    show_wind_strength_color
+Show wind strength color indication on wind arrow (overrides `wind_arrow_color` option).
+
+    wind_strength_threshold
+Set wind speed (m/s) threshold for detecting wind strength. Default threshold values are roughly based on `Beaufort Wind Scale`.
+
+Note, wind arrow will be replaced by a solid circle if wind speed is below `calm` threshold.
+
+    show_background
+Show background color that covers entire widget.
+
+    show_circle_background
+Show circle background color.
+
+    show_wind_speed
+Show wind speed reading. Default unit is meters per second (m/s). Units can be changed in [Units](#units) dialog.
+
+    show_wind_speed_unit
+Show wind speed unit text.
+
+    show_direction_mark
+Show direction marks according to cardinal directions.
+
+    direction_mark_north_*
+Set direction mark style for North direction.
+
+    direction_mark_major_*
+Set direction mark style for other major directions (South, West, East).
+
+    direction_mark_minor_*
+Set direction mark style for minor directions in between major directions (30 degrees apart).
 
 [**`Back to Top`**](#)

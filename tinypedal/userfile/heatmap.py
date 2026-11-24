@@ -24,12 +24,10 @@ from __future__ import annotations
 
 import re
 
-from ..const_file import ConfigType
-from ..regex_pattern import COMMON_TYRE_COMPOUNDS
-from ..setting import cfg
-from ..template.setting_brakes import BRAKEINFO_DEFAULT
-from ..template.setting_compounds import COMPOUNDINFO_DEFAULT
-from ..template.setting_heatmap import HEATMAP_DEFAULT_BRAKE, HEATMAP_DEFAULT_TYRE
+from .. import cfg
+from ..constant import CONFIG, HEATMAP
+from ..setting.default_brakes import BRAKEINFO_DEFAULT
+from ..setting.default_compounds import COMPOUNDINFO_DEFAULT
 from ..validator import invalid_save_name, is_hex_color
 from .brands import select_brand_name
 
@@ -39,7 +37,7 @@ def add_missing_brake(brake_name: str) -> dict:
     """Add missing brake style to brakes preset"""
     new_data = BRAKEINFO_DEFAULT.copy()
     cfg.user.brakes[brake_name] = new_data
-    cfg.save(config_type=ConfigType.BRAKES)
+    cfg.save(config_type=CONFIG.TYPE_BRAKES)
     return new_data
 
 
@@ -54,18 +52,17 @@ def save_brake_failure_thickness(brake_name: str, failure: float) -> None:
         cfg.user.brakes[brake_name] = new_data
     else:
         brake["failure_thickness"] = failure
-    cfg.save(config_type=ConfigType.BRAKES)
+    cfg.save(config_type=CONFIG.TYPE_BRAKES)
 
 
-def set_predefined_brake_name(class_name: str, vehicle_name: str, is_front: bool) -> str:
+def set_predefined_brake_name(class_name: str, vehicle_name: str, compound_name: str, is_front: bool) -> str:
     """Set common brake name"""
     if class_name == "":
         return ""
-    suffix_name = "Front Brake" if is_front else "Rear Brake"
-    brand_name = select_brand_name(vehicle_name=vehicle_name)
-    if brand_name != "":
-        return f"{class_name} - {brand_name} {suffix_name}"
-    return f"{class_name} - {suffix_name}"
+    brand_name = select_brand_name(vehicle_name)
+    disc_name = "Front Brake" if is_front else "Rear Brake"
+    brake_name = " ".join(n for n in (brand_name, disc_name, compound_name) if n != "")
+    return f"{class_name} - {brake_name}"
 
 
 def select_brake_failure_thickness(brake_name: str) -> float:
@@ -83,19 +80,15 @@ def select_brake_heatmap_name(brake_name: str) -> str:
     brake = cfg.user.brakes.get(brake_name)
     if brake is None:
         if invalid_save_name(brake_name):
-            return HEATMAP_DEFAULT_BRAKE
+            return HEATMAP.BRAKE_DEFAULT
         brake = add_missing_brake(brake_name)
-    return brake.get("heatmap", HEATMAP_DEFAULT_BRAKE)
+    return brake.get("heatmap", HEATMAP.BRAKE_DEFAULT)
 
 
-def brake_failure_thickness(class_name: str, vehicle_name: str) -> tuple[float, float, float, float]:
+def brake_failure_thickness(brake_name_front: str, brake_name_rear: str) -> tuple[float, float, float, float]:
     """Get failure thickness"""
-    failure_thickness_f = select_brake_failure_thickness(
-        set_predefined_brake_name(class_name, vehicle_name, True)
-    )
-    failure_thickness_r = select_brake_failure_thickness(
-        set_predefined_brake_name(class_name, vehicle_name, False)
-    )
+    failure_thickness_f = select_brake_failure_thickness(brake_name_front)
+    failure_thickness_r = select_brake_failure_thickness(brake_name_rear)
     return (
         failure_thickness_f,
         failure_thickness_f,
@@ -110,13 +103,13 @@ def add_missing_compound(compound_name: str) -> dict:
     new_data = COMPOUNDINFO_DEFAULT.copy()
     new_data["symbol"] = set_predefined_compound_symbol(compound_name.split("-")[-1].strip())
     cfg.user.compounds[compound_name] = new_data
-    cfg.save(config_type=ConfigType.COMPOUNDS)
+    cfg.save(config_type=CONFIG.TYPE_COMPOUNDS)
     return new_data
 
 
 def set_predefined_compound_symbol(compound_name: str) -> str:
     """Set common tyre compound name to predefined symbol"""
-    for compound in COMMON_TYRE_COMPOUNDS:
+    for compound in HEATMAP.TYRE_PATTERNS:
         if re.search(compound[0], compound_name, flags=re.IGNORECASE):
             return compound[1]
     if compound_name:  # use first letter if available
@@ -149,9 +142,9 @@ def select_tyre_heatmap_name(compound_name: str) -> str:
     compound = cfg.user.compounds.get(compound_name)
     if compound is None:
         if invalid_save_name(compound_name):
-            return HEATMAP_DEFAULT_TYRE
+            return HEATMAP.TYRE_DEFAULT
         compound = add_missing_compound(compound_name)
-    return compound.get("heatmap", HEATMAP_DEFAULT_TYRE)
+    return compound.get("heatmap", HEATMAP.TYRE_DEFAULT)
 
 
 # Heatmap function

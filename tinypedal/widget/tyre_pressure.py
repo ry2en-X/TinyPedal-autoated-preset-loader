@@ -20,10 +20,9 @@
 Tyre pressure Widget
 """
 
+from .. import api, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import TEXT_NA, TEXT_PLACEHOLDER, WHEELS_ZERO
+from ..constant import DATA
 from ..userfile.heatmap import select_compound_color, select_compound_symbol
 from ._base import Overlay
 
@@ -82,8 +81,9 @@ class Realtime(Overlay):
             ),
         )
         self.bars_tpres = self.set_rawtext(
-            text=TEXT_NA,
-            width=font_m.width * self.text_width + bar_padx,
+            text=DATA.TEXT_NA,
+            padding=bar_padx,
+            width=font_m.width * self.text_width,
             fixed_height=font_m.height,
             offset_y=font_m.voffset,
             fg_color=self.bar_style_tpres[0][0],
@@ -98,8 +98,9 @@ class Realtime(Overlay):
         # Tyre compound
         if self.wcfg["show_tyre_compound"]:
             self.bars_tcmpd = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
-                width=font_m.width + bar_padx,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
+                width=font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_tyre_compound"],
@@ -113,8 +114,9 @@ class Realtime(Overlay):
         # Pressure deviation
         if self.wcfg["show_pressure_deviation"]:
             self.bars_pdiff = self.set_rawtext(
-                text=TEXT_NA,
-                width=font_m.width * self.text_width + bar_padx,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
+                width=font_m.width * self.text_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_pressure_deviation"],
@@ -125,7 +127,7 @@ class Realtime(Overlay):
             for idx, inner in enumerate(layout_inner):
                 inner.addWidget(self.bars_pdiff[idx], base_row, 2 * (idx % 2))
 
-            self.tpavg = list(WHEELS_ZERO)
+            self.tpavg = list(DATA.WHEELS_ZERO)
             update_interval = max(self.wcfg["update_interval"], 0.01)
             average_samples = int(min(max(self.wcfg["average_sampling_duration"], 1), 600) / (update_interval * 0.001))
             self.calc_ema_tpres = calc.ema_filter(average_samples)

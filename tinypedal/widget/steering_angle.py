@@ -20,11 +20,9 @@
 Steering angle Widget
 """
 
+from .. import api, minfo, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import TEXT_NA
-from ..module_info import minfo
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -48,9 +46,7 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
-        bar_width = font_m.width * 6 + bar_padx
-        self.wheeltrack_front = max(self.wcfg["wheel_track_front"], 1)
-        self.wheelbase = max(self.wcfg["wheelbase"], 1)
+        bar_width = font_m.width * 6
 
         # Config units
         self.unit_dist = units.set_unit_distance(self.cfg.units["distance_unit"])
@@ -59,7 +55,8 @@ class Realtime(Overlay):
         # Steering angle
         if self.wcfg["show_steering_angle"]:
             self.bar_steer_angle = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -74,7 +71,8 @@ class Realtime(Overlay):
         # Front wheel angle
         if self.wcfg["show_front_wheel_angle"]:
             self.bar_wheel_angle = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -89,7 +87,8 @@ class Realtime(Overlay):
         # Steering ratio
         if self.wcfg["show_steering_ratio"]:
             self.bar_steer_ratio = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -104,7 +103,8 @@ class Realtime(Overlay):
         # Ackermann percentage
         if self.wcfg["show_ackermann_percentage"]:
             self.bar_ackermann_percentage = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -133,7 +133,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bar_diff_slip_angle = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -149,7 +150,8 @@ class Realtime(Overlay):
         # Yaw rate
         if self.wcfg["show_yaw_rate"]:
             self.bar_yaw_rate = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -164,7 +166,8 @@ class Realtime(Overlay):
         # Turning radius
         if self.wcfg["show_turning_radius"]:
             self.bar_turning_radius = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -179,7 +182,8 @@ class Realtime(Overlay):
         # Turning radius under slip angle
         if self.wcfg["show_turning_radius_under_slip_angle"]:
             self.bar_slip_radius = self.set_rawtext(
-                text=TEXT_NA,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -197,11 +201,19 @@ class Realtime(Overlay):
         if self.wcfg["manual_steering_range"] > 0:
             steering_range = self.wcfg["manual_steering_range"]
         else:
-            steering_range = api.read.inputs.steering_range_physical()
+            steering_range = api.read.inputs.steering_range()
 
-        steer_angle = api.read.inputs.steering_raw() * steering_range * 0.5
+        steer_angle = api.read.inputs.steering() * steering_range * 0.5
         wheel_angle_front_average = minfo.wheels.averageFrontToeAngle
         diff_slip_angle = minfo.wheels.slipAngleDifference
+
+        wheeltrack_front = minfo.wheels.wheelTrackFront
+        if wheeltrack_front <= 0:
+            wheeltrack_front = self.wcfg["wheel_track_front"]
+
+        wheelbase = minfo.wheels.wheelbase
+        if wheelbase <= 0:
+            wheelbase = self.wcfg["wheelbase"]
 
         # Steering angle
         if self.wcfg["show_steering_angle"]:
@@ -221,8 +233,8 @@ class Realtime(Overlay):
             ackermann_percent = calc.ackermann_percentage(
                 minfo.wheels.toeAngle[0],
                 minfo.wheels.toeAngle[1],
-                self.wheeltrack_front,
-                self.wheelbase,
+                wheeltrack_front,
+                wheelbase,
             )
             self.update_ackermann_percentage(self.bar_ackermann_percentage, ackermann_percent)
 
@@ -239,7 +251,7 @@ class Realtime(Overlay):
         if self.wcfg["show_turning_radius"]:
             turning_radius = calc.turning_radius(
                 wheel_angle_front_average,
-                self.wheelbase,
+                wheelbase,
             )
             self.update_turning_radius(self.bar_turning_radius, turning_radius)
 
@@ -247,7 +259,7 @@ class Realtime(Overlay):
         if self.wcfg["show_turning_radius_under_slip_angle"]:
             slip_radius = calc.turning_radius(
                 wheel_angle_front_average + (minfo.wheels.averageFrontSlipAngle - minfo.wheels.averageRearSlipAngle),
-                self.wheelbase,
+                wheelbase,
             )
             self.update_turning_radius(self.bar_slip_radius, slip_radius)
 

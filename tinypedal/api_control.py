@@ -20,33 +20,28 @@
 API control
 """
 
+from __future__ import annotations
+
 import logging
 
-from . import api_connector, realtime_state
-from .const_api import API_MAP_ALIAS
-from .const_app import PLATFORM
-from .setting import cfg
+from . import adapter, cfg, realtime_state
+from .constant import API
 
 logger = logging.getLogger(__name__)
 
 
-def _set_available_api(enable_legacy: bool):
-    """Set available API"""
-    if PLATFORM.WINDOWS:
-        available_api = (
-            api_connector.SimLMU,
-            api_connector.SimLMULegacy,
-            api_connector.SimRF2,
+def _get_available_api(enable_legacy: bool):
+    """Get available API"""
+    return {
+        _api.NAME: _api
+        for _api in (
+            adapter.SimACC,
+            adapter.SimLMU,
+            adapter.SimLMULegacy,
+            adapter.SimRF2,
         )
-    else:
-        available_api = (
-            api_connector.SimLMU,
-            api_connector.SimLMULegacy,
-            api_connector.SimRF2,
-        )
-    # Sort API by name
-    api_gen = (_api for _api in available_api if not _api.LEGACY or enable_legacy)
-    return tuple(sorted(api_gen, key=lambda _api:_api.NAME))
+        if not _api.LEGACY or enable_legacy
+    }
 
 
 class APIControl:
@@ -61,11 +56,11 @@ class APIControl:
     )
 
     def __init__(self):
-        self._api = None
-        self._available_api = ()
+        self._api: adapter.Connector = None  # type: ignore
+        self._available_api = {}
         self._enable_legacy = False
         self._same_api_loaded = False
-        self.read = None
+        self.read: adapter.APIDataReader = None  # type: ignore
 
     def connect(self, name: str = ""):
         """Connect to API
@@ -74,12 +69,12 @@ class APIControl:
             name: API full name
         """
         if not name:
-            name = cfg.api_name
+            name = cfg.selected_api
 
         enable_legacy = cfg.telemetry["enable_legacy_api_selection"]
         if not self._available_api or self._enable_legacy != enable_legacy:
             self._enable_legacy = enable_legacy
-            self._available_api = _set_available_api(enable_legacy)
+            self._available_api = _get_available_api(enable_legacy)
             self._same_api_loaded = False
         else:
             # Do not create new instance if same API already loaded
@@ -89,14 +84,14 @@ class APIControl:
             logger.info("CONNECTING: same API detected, fast restarting")
             return
 
-        for _api in self._available_api:
-            if _api.NAME == name:
-                self._api = _api()
-                return
+        _api = self._available_api.get(name)
+        if _api is not None:
+            self._api = _api()
+            return
 
         logger.warning("CONNECTING: Invalid API name, fall back to default")
-        self._api = self._available_api[0]()
-        cfg.api_name = self._api.NAME
+        self._api = self._available_api[API.NAME_LMU]
+        cfg.selected_api = self._api.NAME
 
     def start(self):
         """Start API"""
@@ -125,6 +120,7 @@ class APIControl:
             self._api.close()
         for var in self.__slots__:
             setattr(self, var, None)
+        logger.info("API: closed")
 
     def restart(self):
         """Restart API"""
@@ -140,9 +136,9 @@ class APIControl:
         self._api.setup(setting_api)
 
     @property
-    def available(self):
-        """Available API"""
-        return self._available_api
+    def available(self) -> tuple[str, ...]:
+        """Available API name list"""
+        return tuple(self._available_api)
 
     @property
     def name(self) -> str:
@@ -152,7 +148,4 @@ class APIControl:
     @property
     def alias(self) -> str:
         """API alias name"""
-        return API_MAP_ALIAS[self._api.NAME]
-
-
-api = APIControl()
+        return API.MAP_ALIAS[self._api.NAME]

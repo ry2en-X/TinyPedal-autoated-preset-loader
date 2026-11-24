@@ -20,7 +20,6 @@
 Radar Widget
 """
 
-from itertools import islice
 from typing import NamedTuple
 
 from PySide2.QtCore import QRectF, Qt
@@ -34,9 +33,9 @@ from PySide2.QtGui import (
     QRadialGradient,
 )
 
+from .. import api, minfo
 from .. import calculation as calc
-from ..api_control import api
-from ..module_info import minfo
+from ..module_info import VehicleData
 from ._base import Overlay
 
 
@@ -341,12 +340,12 @@ class Realtime(Overlay):
         nearest_right = indicator.max_range_x
 
         # Draw opponent vehicle within radar range
-        for veh_info in islice(minfo.vehicles.dataSet, minfo.vehicles.totalVehicles):
-            if veh_info.isPlayer:
+        for data in minfo.vehicles.activeDataSet:
+            if data.isPlayer or data.inPit == 2:
                 continue
             # -x = left, +x = right, -y = ahead, +y = behind
-            raw_pos_x = veh_info.relativeRotatedPositionX
-            raw_pos_y = veh_info.relativeRotatedPositionY
+            raw_pos_x = data.relativeRotatedPositionX
+            raw_pos_y = data.relativeRotatedPositionY
             if (visible_range.behind > raw_pos_y > -visible_range.ahead and
                 -visible_range.side < raw_pos_x < visible_range.side):
 
@@ -365,13 +364,13 @@ class Realtime(Overlay):
                     raw_pos_y * self.global_scale + self.area_center,
                 )
                 if self.wcfg["show_vehicle_orientation"]:
-                    painter.rotate(calc.degrees(-veh_info.relativeOrientationRadians))
+                    painter.rotate(calc.degrees(-data.relativeOrientationRadians))
 
                 # Draw vehicle
                 if self.wcfg["show_collision_course"]:
-                    self.draw_collision_course(painter, veh_info)
+                    self.draw_collision_course(painter, data)
 
-                painter.setBrush(self.color_lap_diff(veh_info))
+                painter.setBrush(self.color_lap_diff(data))
                 painter.drawRoundedRect(self.veh_shape, self.veh_radius, self.veh_radius)
                 painter.resetTransform()
 
@@ -383,22 +382,22 @@ class Realtime(Overlay):
             else:
                 self.draw_warning_rect(painter, nearest_left, nearest_right, indicator)
 
-    def draw_collision_course(self, painter, veh_info):
+    def draw_collision_course(self, painter, data: VehicleData):
         """Draw collision course"""
         intercept_x, intercept_y = calc.rotate_coordinate(
-            veh_info.relativeOrientationRadians,
-            veh_info.relativeRotatedPositionX,
-            veh_info.relativeRotatedPositionY,
+            data.relativeOrientationRadians,
+            data.relativeRotatedPositionX,
+            data.relativeRotatedPositionY,
         )
         if intercept_y <= 0:
             return
         abs_intercept_x = abs(intercept_x)
         if abs_intercept_x > self.coll_range_nearby:
             return
-        player_speed = minfo.vehicles.dataSet[minfo.vehicles.playerIndex].speed
-        relative_speed = veh_info.speed - player_speed
-        min_speed = max(self.coll_min_speed, self.coll_add_speed * veh_info.relativeStraightDistance)
-        if relative_speed > min_speed or veh_info.isYellow:
+        player_speed = minfo.vehicles.playerData.speed
+        relative_speed = data.speed - player_speed
+        min_speed = max(self.coll_min_speed, self.coll_add_speed * data.relativeStraightDistance)
+        if relative_speed > min_speed or data.isYellow:
             if abs_intercept_x <= self.coll_range_critical:
                 coll_color = self.wcfg["collision_course_critical_color"]
             else:
@@ -406,17 +405,17 @@ class Realtime(Overlay):
             painter.fillRect(self.coll_shape, coll_color)
 
     # Additional methods
-    def color_lap_diff(self, veh_info):
+    def color_lap_diff(self, data: VehicleData):
         """Compare lap differences & set color"""
-        if veh_info.positionOverall == 1:
+        if data.positionOverall == 1:
             return self.brush_veh["leader"]
-        if veh_info.inPit:
+        if data.inPit:
             return self.brush_veh["in_pit"]
-        if veh_info.isYellow:
+        if data.isYellow:
             return self.brush_veh["yellow"]
-        if veh_info.isLapped > 0:
+        if data.isLapped > 0:
             return self.brush_veh["laps_ahead"]
-        if veh_info.isLapped < 0:
+        if data.isLapped < 0:
             return self.brush_veh["laps_behind"]
         return self.brush_veh["same_lap"]
 
@@ -435,16 +434,16 @@ class Realtime(Overlay):
         if self.wcfg["enable_radar_fade"]:
             return is_nearby
         # Start auto hide timer
-        lap_etime = api.read.timing.elapsed()
+        elapsed_time = api.read.timing.elapsed()
         if is_nearby:
-            self.autohide_timer_start = lap_etime
+            self.autohide_timer_start = elapsed_time
             return True
         # Update auto hide timer
         if not self.autohide_timer_start:
             return False
-        if self.autohide_timer_start > lap_etime:
-            self.autohide_timer_start = lap_etime
-        if lap_etime - self.autohide_timer_start > self.wcfg["auto_hide_time_threshold"]:
+        if self.autohide_timer_start > elapsed_time:
+            self.autohide_timer_start = elapsed_time
+        if elapsed_time - self.autohide_timer_start > self.wcfg["auto_hide_time_threshold"]:
             self.autohide_timer_start = 0
             return False
         return True
@@ -454,11 +453,14 @@ class Realtime(Overlay):
         # Quick check straight range vehicles
         if minfo.vehicles.nearestLine > self.straight_range:
             return False
-        for veh_info in islice(minfo.vehicles.dataSet, minfo.vehicles.totalVehicles):
+        for data in minfo.vehicles.activeDataSet:
             # -x = left, +x = right, -y = ahead, +y = behind
-            if (not veh_info.isPlayer and
-                hide_range.behind > veh_info.relativeRotatedPositionY > -hide_range.ahead and
-                -hide_range.side < veh_info.relativeRotatedPositionX < hide_range.side):
+            if (
+                not data.isPlayer
+                and data.inPit != 2
+                and hide_range.behind > data.relativeRotatedPositionY > -hide_range.ahead
+                and -hide_range.side < data.relativeRotatedPositionX < hide_range.side
+            ):
                 return True
         return False
 

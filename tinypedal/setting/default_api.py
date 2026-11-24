@@ -1,0 +1,82 @@
+#  TinyPedal is an open-source overlay application for racing simulation.
+#  Copyright (C) 2022-2026 TinyPedal developers, see contributors.md file
+#
+#  This file is part of TinyPedal.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
+Default API setting
+"""
+
+from ..constant import API
+
+API_DEFAULT = {
+    API.CONFIG_ACC: {
+        "access_mode": 0,
+        "memory_map_prefix": "",
+        "character_encoding": "UTF-8",
+        "enable_active_state_override": False,
+        "active_state": True,
+        "enable_player_index_override": False,
+        "player_index": -1,
+        "enable_udp_api_access": True,
+        "udp_api_update_interval": 200,
+        "url_host": "127.0.0.1",
+        "url_port": 9000,
+        "connection_password": "",
+        "connection_timeout": 60,
+        "connection_retry": 3,
+        "connection_retry_delay": 3,
+    },
+    API.CONFIG_LMU: {
+        "access_mode": 0,
+        "character_encoding": "UTF-8",
+        "enable_active_state_override": False,
+        "active_state": True,
+        "enable_player_index_override": False,
+        "player_index": -1,
+        "enable_restapi_access": True,
+        "restapi_update_interval": 200,
+        "url_host": "localhost",
+        "url_port": 6397,
+        "connection_timeout": 1,
+        "connection_retry": 3,
+        "connection_retry_delay": 1,
+        "enable_garage_setup_info": True,
+        "enable_session_info": True,
+        "enable_vehicle_info": True,
+        "enable_weather_info": True,
+    },
+    API.CONFIG_RF2: {
+        "access_mode": 0,
+        "memory_map_prefix": "",
+        "process_id": "",
+        "character_encoding": "UTF-8",
+        "enable_active_state_override": False,
+        "active_state": True,
+        "enable_player_index_override": False,
+        "player_index": -1,
+        "enable_restapi_access": True,
+        "restapi_update_interval": 200,
+        "url_host": "localhost",
+        "url_port": 5397,
+        "connection_timeout": 1,
+        "connection_retry": 3,
+        "connection_retry_delay": 1,
+        "enable_garage_setup_info": True,
+        "enable_session_info": True,
+        "enable_weather_info": True,
+    },
+}

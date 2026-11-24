@@ -20,11 +20,9 @@
 Traffic Widget
 """
 
-from .. import units
-from ..api_control import api
-from ..const_common import MAX_SECONDS, TEXT_PLACEHOLDER
+from .. import minfo, units
+from ..constant import DATA
 from ..formatter import random_color_class, shorten_driver_name
-from ..module_info import minfo
 from ._base import Overlay
 
 
@@ -57,7 +55,7 @@ class Realtime(Overlay):
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
         bar_width = max(self.wcfg["bar_width"], 3)
-        style_width = font_m.width * bar_width + bar_padx
+        style_width = font_m.width * bar_width
         self.lap_width = bar_width - 1
         self.cls_width = bar_width
         self.show_slower_ahead = self.wcfg["show_slower_ahead"]
@@ -88,7 +86,8 @@ class Realtime(Overlay):
         # Class name
         if self.wcfg["show_class"]:
             self.bar_classes = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 fixed_width=style_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -112,7 +111,8 @@ class Realtime(Overlay):
                 ),
             )
             self.bar_laps = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 fixed_width=style_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -126,7 +126,8 @@ class Realtime(Overlay):
         if self.wcfg["show_time_interval"]:
             self.decimals_time = max(self.wcfg["decimal_places_time_interval"], 0)
             self.bar_time = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 fixed_width=style_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -138,86 +139,78 @@ class Realtime(Overlay):
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        veh_data = minfo.vehicles.dataSet
-        player_index = minfo.vehicles.playerIndex
-        player_laptime = api.read.timing.estimated_laptime()
+        veh_info = minfo.vehicles
+        veh_dataset = veh_info.dataSet
+        player_index = veh_info.playerIndex
+        player_laptime = veh_info.playerData.estimatedLapTime
 
-        ahead_overtake_laps = MAX_SECONDS
+        ahead_overtake_laps = DATA.MAX_SECONDS
         ahead_overtake_timegap = 0.0
         ahead_overtake_index = -1
 
-        behind_overtake_laps = MAX_SECONDS
+        behind_overtake_laps = DATA.MAX_SECONDS
         behind_overtake_timegap = 0.0
         behind_overtake_index = -1
 
         leader_overtake_laps = 0.0
         leader_overtake_timegap = 0.0
-        leader_overtake_index = minfo.vehicles.leaderIndex
+        leader_overtake_index = veh_info.leaderIndex
 
-        if player_laptime > 0:
-            relative_ahead = minfo.relative.relativeAhead
-            relative_behind = minfo.relative.relativeBehind
-            delta_time_interval_ahead = minfo.relative.relativeDeltaAhead
-            delta_time_interval_behind = minfo.relative.relativeDeltaBehind
-
+        for data in veh_info.activeDataSet:
+            if data.inPit:
+                continue
+            opt_index = data.index
             # Ahead
-            for ahead_timegap, ahead_index in relative_ahead:
-                if veh_data[ahead_index].inPit:
-                    continue
+            ahead_timegap = data.relativeGapAhead
+            ahead_delta_timegap = data.relativeDeltaAhead.long
 
-                avg_delta_timegap = delta_time_interval_ahead[ahead_index].long
+            if ahead_delta_timegap > 0:
+                ahead_laps = -ahead_timegap / ahead_delta_timegap / player_laptime
+            else:
+                ahead_laps = 0
 
-                if avg_delta_timegap > 0:
-                    ahead_laps = ahead_timegap / avg_delta_timegap / player_laptime
-                else:
-                    ahead_laps = 0
-
-                if 0 < ahead_laps < ahead_overtake_laps:
-                    ahead_overtake_laps = ahead_laps
-                    ahead_overtake_timegap = ahead_timegap
-                    ahead_overtake_index = ahead_index
-
-            if ahead_overtake_laps >= MAX_SECONDS:
-                ahead_overtake_laps = 0.0
-
+            if 0 < ahead_laps < ahead_overtake_laps:
+                ahead_overtake_laps = ahead_laps
+                ahead_overtake_timegap = ahead_timegap
+                ahead_overtake_index = opt_index
             # Behind
-            for behind_timegap, behind_index in relative_behind:
-                if veh_data[behind_index].inPit:
-                    continue
+            behind_timegap = data.relativeGapBehind
+            behind_delta_timegap = data.relativeDeltaBehind.long
 
-                avg_delta_timegap = delta_time_interval_behind[behind_index].long
+            if behind_delta_timegap > 0:
+                behind_laps = behind_timegap / behind_delta_timegap / player_laptime
+            else:
+                behind_laps = 0
 
-                if avg_delta_timegap > 0:
-                    behind_laps = -behind_timegap / avg_delta_timegap / player_laptime
-                else:
-                    behind_laps = 0
+            if 0 < behind_laps < behind_overtake_laps:
+                behind_overtake_laps = behind_laps
+                behind_overtake_timegap = behind_timegap
+                behind_overtake_index = opt_index
 
-                if 0 < behind_laps < behind_overtake_laps:
-                    behind_overtake_laps = behind_laps
-                    behind_overtake_timegap = behind_timegap
-                    behind_overtake_index = behind_index
+            if opt_index == leader_overtake_index:
+                leader_overtake_laps = behind_laps
+                leader_overtake_timegap = behind_timegap
 
-                if behind_index == leader_overtake_index:
-                    leader_overtake_laps = behind_laps
-                    leader_overtake_timegap = behind_timegap
+        if ahead_overtake_laps >= DATA.MAX_SECONDS:
+            ahead_overtake_laps = 0.0
 
-            if behind_overtake_laps >= MAX_SECONDS:
-                behind_overtake_laps = 0.0
+        if behind_overtake_laps >= DATA.MAX_SECONDS:
+            behind_overtake_laps = 0.0
 
         if self.wcfg["show_class"]:
             if self.show_slower_ahead:
-                veh_info = veh_data[ahead_overtake_index]
-                self.update_class(self.bar_classes[0], veh_info.vehicleClass, veh_info.driverName)
+                opt_data = veh_dataset[ahead_overtake_index]
+                self.update_class(self.bar_classes[0], opt_data.vehicleClass, opt_data.driverName)
             if self.show_race_leader:
-                veh_info = veh_data[leader_overtake_index]
-                self.update_class(self.bar_classes[1], veh_info.vehicleClass, veh_info.driverName)
+                opt_data = veh_dataset[leader_overtake_index]
+                self.update_class(self.bar_classes[1], opt_data.vehicleClass, opt_data.driverName)
             if self.show_faster_behind:
-                veh_info = veh_data[behind_overtake_index]
-                self.update_class(self.bar_classes[2], veh_info.vehicleClass, veh_info.driverName)
+                opt_data = veh_dataset[behind_overtake_index]
+                self.update_class(self.bar_classes[2], opt_data.vehicleClass, opt_data.driverName)
 
         if self.wcfg["show_estimated_laps"]:
-            plr_lap_progress = 1 - veh_data[player_index].currentLapProgress
-            opt_lap_progress = 1 - veh_data[ahead_overtake_index].currentLapProgress
+            plr_lap_progress = 1 - veh_dataset[player_index].currentLapProgress
+            opt_lap_progress = 1 - veh_dataset[ahead_overtake_index].currentLapProgress
             if self.show_slower_ahead:
                 self.update_laps(self.bar_laps[0], ahead_overtake_laps, opt_lap_progress)
             if self.show_race_leader:
@@ -243,7 +236,7 @@ class Realtime(Overlay):
                 text = f"{laps:.{self.decimals_laps}f}"[:self.lap_width].strip(".")
                 text = f"{text}L"
             else:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             target.text = text
             if self.wcfg["enable_traffic_highlight_from_current_lap"]:
                 target.fg, target.bg = self.bar_style_laps[0 < laps <= data[1]]
@@ -257,7 +250,7 @@ class Realtime(Overlay):
                 text = f"{abs(data):.{self.decimals_time}f}"[:self.lap_width].strip(".")
                 text = f"{text}s"
             else:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             target.text = text
             target.update()
 
@@ -269,7 +262,7 @@ class Realtime(Overlay):
             if self.wcfg["show_driver_name_instead_of_class"]:
                 text = data[1]
                 if not text:
-                    text = TEXT_PLACEHOLDER
+                    text = DATA.TEXT_PLACEHOLDER
                 elif self.wcfg["driver_name_shorten"]:
                     text = shorten_driver_name(text)
                 if self.wcfg["driver_name_uppercase"]:
@@ -285,7 +278,7 @@ class Realtime(Overlay):
             return style["alias"], style["color"]
         if class_name:
             return class_name, random_color_class(class_name)
-        return TEXT_PLACEHOLDER, self.wcfg["background_color_class"]
+        return DATA.TEXT_PLACEHOLDER, self.wcfg["background_color_class"]
 
     def add_column(self, layout, bar_temp, row_index):
         """Add column"""

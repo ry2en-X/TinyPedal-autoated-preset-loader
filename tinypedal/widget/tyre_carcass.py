@@ -20,12 +20,10 @@
 Tyre carcass temperature Widget
 """
 
+from .. import api, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import TEXT_NA, TEXT_PLACEHOLDER, WHEELS_ZERO
+from ..constant import DATA, HEATMAP
 from ..userfile.heatmap import (
-    HEATMAP_DEFAULT_TYRE,
     load_heatmap_color,
     select_compound_color,
     select_compound_symbol,
@@ -72,7 +70,7 @@ class Realtime(Overlay):
         self.heatmap_styles = 4 * [
             load_heatmap_color(
                 heatmap_name=self.wcfg["heatmap_name"],
-                default_name=HEATMAP_DEFAULT_TYRE,
+                default_name=HEATMAP.TYRE_DEFAULT,
                 swap_style=self.wcfg["swap_style"],
                 fg_color=self.wcfg["font_color_carcass"],
                 bg_color=self.wcfg["background_color_carcass"],
@@ -82,8 +80,9 @@ class Realtime(Overlay):
         # Tyre carcass temperature
         base_row = 1
         self.bars_ctemp = self.set_rawtext(
-            text=TEXT_NA,
-            width=font_m.width * text_width + bar_padx,
+            text=DATA.TEXT_NA,
+            padding=bar_padx,
+            width=font_m.width * text_width,
             fixed_height=font_m.height,
             offset_y=font_m.voffset,
             fg_color=self.wcfg["font_color_carcass"],
@@ -98,8 +97,9 @@ class Realtime(Overlay):
         # Tyre compound
         if self.wcfg["show_tyre_compound"]:
             self.bars_tcmpd = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
-                width=font_m.width + bar_padx,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
+                width=font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_tyre_compound"],
@@ -144,8 +144,9 @@ class Realtime(Overlay):
                 )
             )
             self.bars_rdiff = self.set_rawtext(
-                text=TEXT_NA,
-                width=font_m.width * 3 + bar_padx,
+                text=DATA.TEXT_NA,
+                padding=bar_padx,
+                width=font_m.width * 3,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_rtemp[2][0],
@@ -162,8 +163,8 @@ class Realtime(Overlay):
         # Last data
         self.last_in_pits = -1
         self.last_compounds = ("", "", "", "")
-        self.last_rtemp = list(WHEELS_ZERO)
-        self.last_lap_etime = 0
+        self.last_rtemp = list(DATA.WHEELS_ZERO)
+        self.last_elapsed_time = 0
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
@@ -192,13 +193,13 @@ class Realtime(Overlay):
 
         # Rate of change
         if self.wcfg["show_rate_of_change"]:
-            lap_etime = api.read.timing.elapsed()
+            elapsed_time = api.read.timing.elapsed()
 
-            if self.last_lap_etime > lap_etime:
-                self.last_lap_etime = lap_etime
-            elif lap_etime - self.last_lap_etime >= 0.1:
-                interval = self.rate_interval / (lap_etime - self.last_lap_etime)
-                self.last_lap_etime = lap_etime
+            if self.last_elapsed_time > elapsed_time:
+                self.last_elapsed_time = elapsed_time
+            elif elapsed_time - self.last_elapsed_time >= 0.1:
+                interval = self.rate_interval / (elapsed_time - self.last_elapsed_time)
+                self.last_elapsed_time = elapsed_time
 
                 for tyre_idx, bar_rdiff in enumerate(self.bars_rdiff):
                     rdiff = self.calc_ema_rdiff(
@@ -214,7 +215,7 @@ class Realtime(Overlay):
         if target.last != data:
             target.last = data
             if data < -100:
-                target.text = TEXT_PLACEHOLDER
+                target.text = DATA.TEXT_PLACEHOLDER
             else:
                 target.text = f"{self.unit_temp(data):0{self.leading_zero}f}{self.sign_text}"
             target.fg, target.bg = calc.select_grade(self.heatmap_styles[index], data)
@@ -246,7 +247,7 @@ class Realtime(Overlay):
         """Heatmap style"""
         self.heatmap_styles[index] = load_heatmap_color(
             heatmap_name=select_tyre_heatmap_name(compound),
-            default_name=HEATMAP_DEFAULT_TYRE,
+            default_name=HEATMAP.TYRE_DEFAULT,
             swap_style=self.wcfg["swap_style"],
             fg_color=self.wcfg["font_color_carcass"],
             bg_color=self.wcfg["background_color_carcass"],

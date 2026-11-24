@@ -20,8 +20,9 @@
 Roll angle Widget
 """
 
+from .. import api, minfo
 from .. import calculation as calc
-from ..api_control import api
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -68,7 +69,8 @@ class Realtime(Overlay):
         text_rollf = self.format_roll(0, self.prefix_rollf)
         self.bar_rollf = self.set_rawtext(
             text=text_rollf,
-            width=font_m.width * len(text_rollf) + bar_padx,
+            padding=bar_padx,
+            width=font_m.width * len(text_rollf),
             fixed_height=font_m.height,
             offset_y=font_m.voffset,
             fg_color=self.wcfg["font_color_roll_angle_front"],
@@ -84,7 +86,8 @@ class Realtime(Overlay):
         text_rollr = self.format_roll(0, self.prefix_rollr)
         self.bar_rollr = self.set_rawtext(
             text=text_rollr,
-            width=font_m.width * len(text_rollr) + bar_padx,
+            padding=bar_padx,
+            width=font_m.width * len(text_rollr),
             fixed_height=font_m.height,
             offset_y=font_m.voffset,
             fg_color=self.wcfg["font_color_roll_angle_rear"],
@@ -103,7 +106,8 @@ class Realtime(Overlay):
             text_rolld = self.format_roll(0, self.prefix_rolld)
             self.bar_rolld = self.set_rawtext(
                 text=text_rolld,
-                width=font_m.width * len(text_rolld) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * len(text_rolld),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_roll_angle_difference"],
@@ -119,7 +123,8 @@ class Realtime(Overlay):
             text_ratio = self.format_ratio(0, self.prefix_ratio)
             self.bar_ratio = self.set_rawtext(
                 text=text_ratio,
-                width=font_m.width * len(text_ratio) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * len(text_ratio),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_roll_angle_ratio"],
@@ -134,11 +139,31 @@ class Realtime(Overlay):
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        height_fl, height_fr, height_rl, height_rr = api.read.wheel.ride_height()
+        rideh_set = api.read.wheel.ride_height()
+        if rideh_set == DATA.WHEELS_ZERO:
+            static_f = self.cfg.user.setting["ride_height"]["static_height_front"]
+            static_r = self.cfg.user.setting["ride_height"]["static_height_rear"]
+            if static_f > 0 < static_r:
+                susp_current = minfo.wheels.currentSuspensionPosition
+                susp_static = minfo.wheels.staticSuspensionPosition
+                rideh_set = (
+                    static_f - susp_current[0] + susp_static[0],
+                    static_f - susp_current[1] + susp_static[1],
+                    static_r - susp_current[2] + susp_static[2],
+                    static_r - susp_current[3] + susp_static[3],
+                )
+
+        wheeltrack_front = minfo.wheels.wheelTrackFront
+        if wheeltrack_front <= 0:
+            wheeltrack_front = self.wcfg["wheel_track_front"]
+
+        wheeltrack_rear = minfo.wheels.wheelTrackRear
+        if wheeltrack_rear <= 0:
+            wheeltrack_rear = self.wcfg["wheel_track_rear"]
 
         # Roll angle
-        rollf_deg = calc.slope_angle(height_fr - height_fl, self.wcfg["wheel_track_front"])
-        rollr_deg = calc.slope_angle(height_rr - height_rl, self.wcfg["wheel_track_rear"])
+        rollf_deg = calc.slope_angle(rideh_set[1] - rideh_set[0], wheeltrack_front)
+        rollr_deg = calc.slope_angle(rideh_set[3] - rideh_set[2], wheeltrack_rear)
 
         ema_rollf_deg = self.calc_ema_roll(self.bar_rollf.last, rollf_deg)
         ema_rollr_deg = self.calc_ema_roll(self.bar_rollr.last, rollr_deg)

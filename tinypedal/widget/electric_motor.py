@@ -20,9 +20,8 @@
 Electric motor Widget
 """
 
+from .. import api, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
 from ._base import Overlay
 
 
@@ -46,7 +45,7 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
-        bar_width = font_m.width * 8 + bar_padx
+        bar_width = font_m.width * 8
 
         # Config units
         self.unit_temp = units.set_unit_temperature(self.cfg.units["temperature_unit"])
@@ -61,6 +60,7 @@ class Realtime(Overlay):
             )
             self.bar_motor = self.set_rawtext(
                 text="M TEMP",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -80,6 +80,7 @@ class Realtime(Overlay):
             )
             self.bar_water = self.set_rawtext(
                 text="W TEMP",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -95,6 +96,7 @@ class Realtime(Overlay):
         if self.wcfg["show_rpm"]:
             self.bar_rpm = self.set_rawtext(
                 text="RPM",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -110,6 +112,7 @@ class Realtime(Overlay):
         if self.wcfg["show_torque"]:
             self.bar_torque = self.set_rawtext(
                 text="TORQUE",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -125,6 +128,7 @@ class Realtime(Overlay):
         if self.wcfg["show_power"]:
             self.bar_power = self.set_rawtext(
                 text="POWER",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -140,6 +144,7 @@ class Realtime(Overlay):
         if self.wcfg["show_regeneration_level"]:
             self.bar_regen = self.set_rawtext(
                 text="REGEN",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
