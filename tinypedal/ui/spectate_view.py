@@ -34,10 +34,7 @@ from PySide2.QtWidgets import (
     QWidget,
 )
 
-from .. import app_signal, realtime_state
-from ..api_control import api
-from ..module_control import mctrl
-from ..setting import cfg
+from .. import api, app_signal, cfg, mctrl, realtime_state
 from ._common import UIScaler
 
 logger = logging.getLogger(__name__)
@@ -110,9 +107,10 @@ class SpectateList(QWidget):
     def timerEvent(self, event):
         """Update when data not paused"""
         if not realtime_state.paused:
+            driver_index = api.read.vehicle.player_index()
+            driver_name = api.read.vehicle.driver_name(driver_index)
             total_vehicles = api.read.vehicle.total_vehicles()
-            driver_name = api.read.vehicle.driver_name()
-            if not driver_name:
+            if not driver_name or driver_index < 0:
                 driver_name = self._driver_none
             if (
                 self.last_driver_name != driver_name
@@ -187,7 +185,6 @@ class SpectateList(QWidget):
         listbox.clear()
         listbox.addItem(self._driver_none)
         listbox.addItems(driver_list)
-
         self.focus_on_selected(selected_name)
         self.save_selected_index(selected_slot)
         self.reload_data_module(self.selected_name())

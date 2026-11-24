@@ -20,8 +20,9 @@
 Rake angle Widget
 """
 
+from .. import api, minfo
 from .. import calculation as calc
-from ..api_control import api
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -57,7 +58,8 @@ class Realtime(Overlay):
         text_rake = self.format_rake(0)
         self.bar_rake = self.set_rawtext(
             text=text_rake,
-            width=font_m.width * len(text_rake) + bar_padx,
+            padding=bar_padx,
+            width=font_m.width * len(text_rake),
             fixed_height=font_m.height,
             offset_y=font_m.voffset,
             fg_color=self.wcfg["font_color_rake_angle"],
@@ -69,8 +71,20 @@ class Realtime(Overlay):
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        # Rake angle
-        ema_rake = self.calc_ema_rake(self.bar_rake.last, calc.rake(*api.read.wheel.ride_height()))
+        rideh_set = api.read.wheel.ride_height()
+        if rideh_set == DATA.WHEELS_ZERO:
+            static_f = self.cfg.user.setting["ride_height"]["static_height_front"]
+            static_r = self.cfg.user.setting["ride_height"]["static_height_rear"]
+            if static_f > 0 < static_r:
+                susp_current = minfo.wheels.currentSuspensionPosition
+                susp_static = minfo.wheels.staticSuspensionPosition
+                rideh_set = (
+                    static_f - susp_current[0] + susp_static[0],
+                    static_f - susp_current[1] + susp_static[1],
+                    static_r - susp_current[2] + susp_static[2],
+                    static_r - susp_current[3] + susp_static[3],
+                )
+        ema_rake = self.calc_ema_rake(self.bar_rake.last, calc.rake(*rideh_set))
         self.update_rake(self.bar_rake, ema_rake)
 
     # GUI update methods
@@ -84,7 +98,10 @@ class Realtime(Overlay):
 
     def format_rake(self, rake):
         """Format rake"""
-        rake_angle = f"{calc.slope_angle(rake, self.wcfg['wheelbase']):+.{self.decimals}f}"
+        wheelbase = minfo.wheels.wheelbase
+        if wheelbase <= 0:
+            wheelbase = self.wcfg["wheelbase"]
+        rake_angle = f"{calc.slope_angle(rake, wheelbase):+.{self.decimals}f}"
         if self.wcfg["show_ride_height_difference"]:
             ride_diff = f"({abs(rake):02.0f})"
         else:

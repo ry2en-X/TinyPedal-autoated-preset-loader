@@ -20,12 +20,10 @@
 Tyre temperature Widget
 """
 
+from .. import api, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import TEXT_NA, TEXT_PLACEHOLDER
+from ..constant import DATA, HEATMAP
 from ..userfile.heatmap import (
-    HEATMAP_DEFAULT_TYRE,
     load_heatmap_color,
     select_compound_color,
     select_compound_symbol,
@@ -71,7 +69,7 @@ class Realtime(Overlay):
         self.heatmap_styles = 4 * [
             load_heatmap_color(
                 heatmap_name=self.wcfg["heatmap_name"],
-                default_name=HEATMAP_DEFAULT_TYRE,
+                default_name=HEATMAP.TYRE_DEFAULT,
                 swap_style=self.wcfg["swap_style"],
                 fg_color=self.wcfg["font_color_surface"],
                 bg_color=self.wcfg["background_color_surface"],
@@ -86,8 +84,9 @@ class Realtime(Overlay):
             temp_count = 1
 
         self.bars_stemp = self.set_rawtext(
-            text=TEXT_NA,
-            width=font_m.width * text_width + bar_padx,
+            text=DATA.TEXT_NA,
+            padding=bar_padx,
+            width=font_m.width * text_width,
             fixed_height=font_m.height,
             offset_y=font_m.voffset,
             fg_color=self.wcfg["font_color_surface"],
@@ -107,8 +106,9 @@ class Realtime(Overlay):
         # Tyre compound
         if self.wcfg["show_tyre_compound"]:
             self.bars_tcmpd = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
-                width=font_m.width + bar_padx,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
+                width=font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_tyre_compound"],
@@ -159,7 +159,7 @@ class Realtime(Overlay):
         if target.last != data:
             target.last = data
             if data < -100:
-                target.text = TEXT_PLACEHOLDER
+                target.text = DATA.TEXT_PLACEHOLDER
             else:
                 target.text = f"{self.unit_temp(data):0{self.leading_zero}f}{self.sign_text}"
             target.fg, target.bg = calc.select_grade(self.heatmap_styles[index], data)
@@ -178,7 +178,7 @@ class Realtime(Overlay):
         """Heatmap style"""
         self.heatmap_styles[index] = load_heatmap_color(
             heatmap_name=select_tyre_heatmap_name(compound),
-            default_name=HEATMAP_DEFAULT_TYRE,
+            default_name=HEATMAP.TYRE_DEFAULT,
             swap_style=self.wcfg["swap_style"],
             fg_color=self.wcfg["font_color_surface"],
             bg_color=self.wcfg["background_color_surface"],

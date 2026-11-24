@@ -22,7 +22,7 @@ Track map viewer
 
 import os
 
-from PySide2.QtCore import QPoint, QPointF, QRect, Qt, Signal
+from PySide2.QtCore import QPoint, QPointF, QRect, Qt
 from PySide2.QtGui import QPainter, QPainterPath, QPen
 from PySide2.QtWidgets import (
     QAbstractSpinBox,
@@ -41,8 +41,8 @@ from PySide2.QtWidgets import (
 )
 
 from .. import calculation as calc
-from ..const_file import ConfigType, FileExt, FileFilter
-from ..setting import cfg
+from .. import cfg, state
+from ..constant import CONFIG, FILE
 from ..userfile.track_map import load_track_map_file
 from ._common import BaseDialog, CompactButton, UIScaler
 from .config import UserConfig
@@ -95,7 +95,7 @@ class TrackMapViewer(BaseDialog):
 class MapView(QWidget):
     """Map view"""
 
-    reloaded = Signal(bool)
+    reloaded = state.qt_signal(bool)
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -129,12 +129,40 @@ class MapView(QWidget):
         self.marked_coords = []
         self.highlighted_coords = None
 
+        # View control
+        self.view_offset_x = 0
+        self.view_offset_y = 0
+        self.mouse_pos = None
+
         # Set layout
         self.set_controls()
         layout_inner_control = QHBoxLayout()
         layout_inner_control.setAlignment(Qt.AlignBottom)
         layout_inner_control.addWidget(self.slider_pos_dist)
         self.setLayout(layout_inner_control)
+
+    def resizeEvent(self, event):
+        """Recalculate view center on resize"""
+        self.center_x = self.size().width() / 2
+        self.center_y = self.size().height() / 2
+
+    def mouseMoveEvent(self, event):
+        """Update view offset position"""
+        if self.mouse_pos is not None:
+            pos = event.pos() - self.mouse_pos
+            self.view_offset_x = pos.x()
+            self.view_offset_y = pos.y()
+            self.update()
+
+    def mousePressEvent(self, event):
+        """Set mouse position & press state"""
+        if event.buttons() == Qt.LeftButton:
+            self.mouse_pos = event.pos()
+            self.mouse_pos -= QPoint(self.view_offset_x, self.view_offset_y)
+
+    def mouseReleaseEvent(self, event):
+        """Reset mouse position on release"""
+        self.mouse_pos = None
 
     def load_config(self, is_reload: bool = True):
         """Load config"""
@@ -266,14 +294,20 @@ class MapView(QWidget):
         self.marked_coords.clear()
         self.highlighted_coords = None
 
+    def reset_map_view(self):
+        """Reset map view"""
+        self.view_offset_x = 0
+        self.view_offset_y = 0
+
     def update_highlighted_coords(self):
         """Update highlighted coordinates"""
         if not self.raw_coords:
             return
-        dist = self.spinbox_pos_dist.value()
+        pos_dist = self.spinbox_pos_dist.value()
         index = calc.binary_search_higher_column(
-            self.raw_dists, dist, 0, self.map_nodes - 1)
+            self.raw_dists, pos_dist, 0, self.map_nodes - 1)
         self.highlighted_coords = self.raw_coords[index]
+        self.reset_map_view()
         self.update()
 
     def update_marked_coords(self, temp_dists: set):
@@ -284,10 +318,10 @@ class MapView(QWidget):
             return
         end_node = self.map_nodes - 1
         self.marked_coords.clear()
-        for dist in temp_dists:
-            if 0 <= dist <= self.map_length:
+        for pos_dist in temp_dists:
+            if 0 <= pos_dist <= self.map_length:
                 index = calc.binary_search_higher_column(
-                    self.raw_dists, dist, 0, end_node)
+                    self.raw_dists, pos_dist, 0, end_node)
                 self.marked_coords.append(QPointF(*self.raw_coords[index]))
         self.marked_dists = temp_dists
         self.update()
@@ -295,7 +329,10 @@ class MapView(QWidget):
     def set_context_menu(self):
         """Set context menu"""
         menu = QMenu()  # temp menu, no parent
+        menu.addAction("Reset Map View")
+        menu.addAction("Reset Map Zoom")
         menu_items = (
+            None,
             "show_dark_background",
             None,
             "show_map_info",
@@ -324,10 +361,17 @@ class MapView(QWidget):
         menu = self.set_context_menu()
         action = menu.exec_(self.mapToGlobal(position))
         if action:
-            name = "show_" + action.text().replace(" ", "_").lower()
-            self.ecfg[name] = not self.ecfg[name]
-            cfg.save(config_type=ConfigType.CONFIG)
-            self.update()
+            action_text = action.text()
+            if action_text == "Reset Map View":
+                self.reset_map_view()
+                self.update()
+            elif action_text == "Reset Map Zoom":
+                self.spinbox_map_scale.setValue(1)
+            else:
+                name = "show_" + action_text.replace(" ", "_").lower()
+                self.ecfg[name] = not self.ecfg[name]
+                cfg.save(config_type=CONFIG.TYPE_CONFIG)
+                self.update()
 
     def open_config_dialog(self):
         """Open config"""
@@ -335,7 +379,7 @@ class MapView(QWidget):
             parent=self,
             key_name="track_map_viewer",
             preset_name=cfg.filename.config,
-            config_type=ConfigType.CONFIG,
+            config_type=CONFIG.TYPE_CONFIG,
             user_setting=cfg.user.config,
             default_setting=cfg.default.config,
             reload_func=self.load_config,
@@ -344,7 +388,7 @@ class MapView(QWidget):
 
     def open_trackmap(self):
         """Open trackmap"""
-        filename_full = QFileDialog.getOpenFileName(self, dir=cfg.path.track_map, filter=FileFilter.SVG)[0]
+        filename_full = QFileDialog.getOpenFileName(self, dir=cfg.path.track_map, filter=FILE.FILTER_SVG)[0]
         if not filename_full:
             return
 
@@ -354,7 +398,7 @@ class MapView(QWidget):
 
     def load_trackmap(self, filepath: str, filename: str):
         """Load trackmap"""
-        if not os.path.exists(f"{filepath}{filename}{FileExt.SVG}"):
+        if not os.path.exists(f"{filepath}{filename}{FILE.EXT_SVG}"):
             msg_text = f"Cannot find track map for<br><b>{filename}</b><br>"
             QMessageBox.warning(self, "Error", msg_text)
             return
@@ -364,7 +408,7 @@ class MapView(QWidget):
             filename=filename,
         )
 
-        if self.raw_coords and len(self.raw_coords) > 9:
+        if len(self.raw_coords) > 9 and self.raw_dists and sector_index:
             self.map_length = self.raw_dists[-1][0]
             self.map_nodes = len(self.raw_coords)
             self.map_filename = filename
@@ -375,7 +419,7 @@ class MapView(QWidget):
             self.map_filename = ""
             msg_text = (
                 "Unable to load track map file from<br>"
-                f"<b>{filepath}{filename}{FileExt.SVG}</b><br><br>"
+                f"<b>{filepath}{filename}{FILE.EXT_SVG}</b><br><br>"
                 "Only support SVG file that generated with TinyPedal."
             )
             QMessageBox.warning(self, "Error", msg_text)
@@ -397,7 +441,7 @@ class MapView(QWidget):
             else:
                 map_path.lineTo(*coords)
         # Close map loop if start & end distance less than 500 meters
-        if calc.distance(raw_coords[0], raw_coords[-1]) < 500:
+        if calc.dist(raw_coords[0], raw_coords[-1]) < 500:
             map_path.closeSubpath()
         # Create start/finish path
         sfinish_path = self.create_sector_path(
@@ -467,10 +511,8 @@ class MapView(QWidget):
         pos_dist, pos_z = self.raw_dists[self.map_seek_index]
 
         # Transform coordinates
-        self.center_x = self.size().width() / 2
-        self.center_y = self.size().height() / 2
-        center_offset_x = self.center_x - pos_x * self.map_scale
-        center_offset_y = self.center_y - pos_y * self.map_scale
+        center_offset_x = self.center_x + self.view_offset_x - pos_x * self.map_scale
+        center_offset_y = self.center_y + self.view_offset_y - pos_y * self.map_scale
 
         # Calculation
         curve_section = list(gen_section_path(
@@ -481,10 +523,10 @@ class MapView(QWidget):
         point_mid = curve_section[mid_index].x(), curve_section[mid_index].y()
         point_end = curve_section[-1].x(), curve_section[-1].y()
         arc_center_pos = calc.tri_coords_circle_center(*point_one, *point_mid, *point_end)
-        arc_radius = calc.distance(point_one, arc_center_pos)
+        arc_radius = calc.dist(point_one, arc_center_pos)
         arc_angle = calc.quad_coords_angle(
             arc_center_pos, point_one, point_mid, point_end)
-        yaw_radians = calc.oriyaw(
+        yaw_radians = calc.atan2(
             point_sec[1] - point_one[1], point_sec[0] - point_one[0])
         turn_direct = calc.turning_direction(
             yaw_radians, *point_one, *point_end)
@@ -603,13 +645,17 @@ class MapView(QWidget):
             self.pen.setWidth(self.ecfg["distance_circle_width"])
             self.pen.setColor(self.ecfg["distance_circle_color"])
             painter.setPen(self.pen)
+            center_offset_x = self.center_x + self.view_offset_x
+            center_offset_y = self.center_y + self.view_offset_y
             for circle_radius in self.distance_circle_radius:
                 if circle_radius > 0:
                     circle_radius *= self.map_scale
                     painter.drawEllipse(
-                        self.center_x - circle_radius,
-                        self.center_y - circle_radius,
-                        circle_radius * 2, circle_radius * 2)
+                        center_offset_x - circle_radius,
+                        center_offset_y - circle_radius,
+                        circle_radius * 2,
+                        circle_radius * 2,
+                    )
 
     def draw_center_mark(self, painter, yaw_radians):
         """Draw center mark"""
@@ -617,9 +663,10 @@ class MapView(QWidget):
             self.pen.setWidth(self.ecfg["center_mark_width"])
             self.pen.setColor(self.ecfg["center_mark_color"])
             painter.setPen(self.pen)
-
-            center_mark_radius = self.ecfg["center_mark_radius"]
-            painter.translate(self.center_x, self.center_y)
+            center_offset_x = self.center_x + self.view_offset_x
+            center_offset_y = self.center_y + self.view_offset_y
+            center_mark_radius = self.ecfg["center_mark_radius"] * self.map_scale
+            painter.translate(center_offset_x, center_offset_y)
             painter.rotate(calc.degrees(yaw_radians))
             painter.drawLine(-center_mark_radius, 0, center_mark_radius, 0)
             painter.drawLine(0, -center_mark_radius, 0, center_mark_radius)

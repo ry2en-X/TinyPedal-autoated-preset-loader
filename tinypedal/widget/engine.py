@@ -20,10 +20,8 @@
 Engine Widget
 """
 
+from .. import api, minfo, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..module_info import minfo
 from ._base import Overlay
 
 
@@ -47,58 +45,21 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
-        bar_width = font_m.width * 8 + bar_padx
+        bar_width = font_m.width * 8
+        self.drive_wheel_allocation = self.wcfg["drive_wheel_allocation"]
 
         # Config units
-        self.unit_temp = units.set_unit_temperature(self.cfg.units["temperature_unit"])
         self.unit_power = units.set_unit_power(self.cfg.units["power_unit"])
         self.symbol_power = units.set_symbol_power(self.cfg.units["power_unit"])
         self.unit_pres = units.set_unit_pressure(self.cfg.units["turbo_pressure_unit"])
         self.symbol_pres = units.set_symbol_pressure(self.cfg.units["turbo_pressure_unit"])
         self.unit_weight = units.set_unit_weight(self.cfg.units["weight_unit"])
 
-        # Oil temperature
-        if self.wcfg["show_oil_temperature"]:
-            self.bar_style_oil = (
-                self.wcfg["background_color_oil"],
-                self.wcfg["warning_color_overheat"],
-            )
-            self.bar_oil = self.set_rawtext(
-                text="Oil T",
-                width=bar_width,
-                fixed_height=font_m.height,
-                offset_y=font_m.voffset,
-                fg_color=self.wcfg["font_color_oil"],
-                bg_color=self.bar_style_oil[0],
-            )
-            self.set_primary_orient(
-                target=self.bar_oil,
-                column=self.wcfg["display_order_oil"],
-            )
-
-        # Water temperature
-        if self.wcfg["show_water_temperature"]:
-            self.bar_style_water = (
-                self.wcfg["background_color_water"],
-                self.wcfg["warning_color_overheat"],
-            )
-            self.bar_water = self.set_rawtext(
-                text="Water T",
-                width=bar_width,
-                fixed_height=font_m.height,
-                offset_y=font_m.voffset,
-                fg_color=self.wcfg["font_color_water"],
-                bg_color=self.bar_style_water[0],
-            )
-            self.set_primary_orient(
-                target=self.bar_water,
-                column=self.wcfg["display_order_water"],
-            )
-
         # Turbo pressure
         if self.wcfg["show_turbo_pressure"]:
             self.bar_turbo = self.set_rawtext(
                 text="Turbo",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -114,6 +75,7 @@ class Realtime(Overlay):
         if self.wcfg["show_rpm"]:
             self.bar_rpm = self.set_rawtext(
                 text="RPM",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -129,6 +91,7 @@ class Realtime(Overlay):
         if self.wcfg["show_rpm_maximum"]:
             self.bar_rpm_max = self.set_rawtext(
                 text="MAX RPM",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -144,6 +107,7 @@ class Realtime(Overlay):
         if self.wcfg["show_torque"]:
             self.bar_torque = self.set_rawtext(
                 text="TORQUE",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -159,6 +123,7 @@ class Realtime(Overlay):
         if self.wcfg["show_power"]:
             self.bar_power = self.set_rawtext(
                 text="POWER",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -174,6 +139,7 @@ class Realtime(Overlay):
         if self.wcfg["show_power_to_weight_ratio"]:
             self.bar_pwratio = self.set_rawtext(
                 text="PW RATIO",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -183,6 +149,22 @@ class Realtime(Overlay):
             self.set_primary_orient(
                 target=self.bar_pwratio,
                 column=self.wcfg["display_order_power_to_weight_ratio"],
+            )
+
+        # Drive ratio
+        if self.wcfg["show_drive_ratio"]:
+            self.bar_dwratio = self.set_rawtext(
+                text="DW RATIO",
+                padding=bar_padx,
+                width=bar_width,
+                fixed_height=font_m.height,
+                offset_y=font_m.voffset,
+                fg_color=self.wcfg["font_color_drive_ratio"],
+                bg_color=self.wcfg["background_color_drive_ratio"],
+            )
+            self.set_primary_orient(
+                target=self.bar_dwratio,
+                column=self.wcfg["display_order_drive_ratio"],
             )
 
         # Last data
@@ -205,16 +187,6 @@ class Realtime(Overlay):
             if max_ve > 0:
                 power_kw = minfo.energy.rateOfConsumption * max_ve / 100_000
                 torque = calc.engine_torque(power_kw, rpm)
-
-        # Oil temperature
-        if self.wcfg["show_oil_temperature"]:
-            temp_oil = round(api.read.engine.oil_temperature(), 2)
-            self.update_oil(self.bar_oil, temp_oil)
-
-        # Water temperature
-        if self.wcfg["show_water_temperature"]:
-            temp_water = round(api.read.engine.water_temperature(), 2)
-            self.update_water(self.bar_water, temp_water)
 
         # Turbo pressure
         if self.wcfg["show_turbo_pressure"]:
@@ -246,23 +218,26 @@ class Realtime(Overlay):
                 self.max_power_kw = self.ema_power
             self.update_power_ratio(self.bar_pwratio, self.max_power_kw, total_static_weight)
 
+        # Drive ratio
+        if self.wcfg["show_drive_ratio"]:
+            wheel_speed = api.read.wheel.rotation()
+            if self.drive_wheel_allocation == 0:
+                wheel_speed = abs(wheel_speed[2] + wheel_speed[3]) / 2
+                drive_alloc = "R"
+            elif self.drive_wheel_allocation == 1:
+                wheel_speed = abs(wheel_speed[0] + wheel_speed[1]) / 2
+                drive_alloc = "F"
+            else:
+                wheel_speed = abs(calc.fmean(wheel_speed))
+                drive_alloc = "A"
+            if wheel_speed > 1:
+                engine_speed = rpm * 0.104719755  # rad/s
+                drive_ratio = engine_speed / wheel_speed
+            else:
+                drive_ratio = 0.0
+            self.update_drive_ratio(self.bar_dwratio, drive_ratio, drive_alloc)
+
     # GUI update methods
-    def update_oil(self, target, data):
-        """Oil temperature"""
-        if target.last != data:
-            target.last = data
-            target.text = f"O{self.unit_temp(data):>6.1f}°"
-            target.bg = self.bar_style_oil[data >= self.wcfg["overheat_threshold_oil"]]
-            target.update()
-
-    def update_water(self, target, data):
-        """Water temperature"""
-        if target.last != data:
-            target.last = data
-            target.text = f"W{self.unit_temp(data):>6.1f}°"
-            target.bg = self.bar_style_water[data >= self.wcfg["overheat_threshold_water"]]
-            target.update()
-
     def update_turbo(self, target, data):
         """Turbo pressure"""
         if target.last != data:
@@ -311,4 +286,12 @@ class Realtime(Overlay):
                 ratio = 0.0
             text = f"{ratio:.3f}"
             target.text = f"{text:.5}p/w"
+            target.update()
+
+    def update_drive_ratio(self, target, data, drive_alloc):
+        """Drive ratio"""
+        if target.last != data:
+            target.last = data
+            text = f"{data:.3f}"
+            target.text = f"{text:.5}:1{drive_alloc}"
             target.update()

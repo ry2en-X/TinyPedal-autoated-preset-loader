@@ -23,9 +23,9 @@ Navigation Widget
 from PySide2.QtCore import QPointF, QRectF, Qt
 from PySide2.QtGui import QBrush, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 
+from .. import api, minfo
 from .. import calculation as calc
-from ..api_control import api
-from ..module_info import minfo
+from ..module_info import VehicleData
 from ._base import Overlay
 
 
@@ -77,7 +77,6 @@ class Realtime(Overlay):
         self.map_path = None
         self.sfinish_path = None
         self.sector_path = None
-        self.create_map_path()
 
         # Config canvas
         self.resize(self.area_size, self.area_size)
@@ -130,11 +129,14 @@ class Realtime(Overlay):
             self.update()
 
     # GUI update methods
-    def update_map(self, data):
+    def update_map(self, modified):
         """Map update"""
-        if self.last_modified != data:
-            self.last_modified = data
-            self.create_map_path(minfo.mapping.coordinates)
+        if self.last_modified != modified:
+            self.last_modified = modified
+            self.create_map_path(
+                minfo.mapping.coordinates,
+                minfo.mapping.sectors,
+            )
 
     def paintEvent(self, event):
         """Draw"""
@@ -143,7 +145,7 @@ class Realtime(Overlay):
         # Draw map
         self.draw_map_image(painter)
         # Draw vehicles
-        self.draw_vehicle(painter, minfo.vehicles.dataSet, minfo.relative.drawOrder)
+        self.draw_vehicle(painter)
         # Apply mask
         if self.wcfg["show_fade_out"]:
             painter.setCompositionMode(QPainter.CompositionMode_DestinationOut)
@@ -183,11 +185,11 @@ class Realtime(Overlay):
                 (self.area_center - self.wcfg["circle_outline_width"]) * 2
             )
 
-    def create_map_path(self, raw_coords=None):
+    def create_map_path(self, raw_coords, raw_sectors):
         """Create map path"""
-        if raw_coords:
+        if raw_coords and raw_sectors:
             map_path = QPainterPath()
-            dist = calc.distance(raw_coords[0], raw_coords[-1])
+            pos_dist = calc.dist(raw_coords[0], raw_coords[-1])
             (self.map_scaled, self.map_size, self.map_offset
              ) = calc.zoom_map(raw_coords, self.global_scale)
             for index, coords in enumerate(self.map_scaled):
@@ -196,22 +198,19 @@ class Realtime(Overlay):
                 else:
                     map_path.lineTo(*coords)
             # Close map loop if start & end distance less than 500 meters
-            if dist < 500:
+            if pos_dist < 500:
                 map_path.closeSubpath()
             # Create start/finish path
             sfinish_path = QPainterPath()
             self.create_sector_path(
-                sfinish_path, self.map_scaled, 0, self.wcfg["start_line_length"])
+                sfinish_path, self.map_scaled, 0, self.wcfg["start_line_length"]
+            )
             # Create sectors paths
-            sectors_index = minfo.mapping.sectors
-            if isinstance(sectors_index, tuple):
-                sector_path = QPainterPath()
-                for index in sectors_index:
-                    self.create_sector_path(
-                        sector_path, self.map_scaled, index, self.wcfg["sector_line_length"]
-                    )
-            else:
-                sector_path = None
+            sector_path = QPainterPath()
+            for index in raw_sectors:
+                self.create_sector_path(
+                    sector_path, self.map_scaled, index, self.wcfg["sector_line_length"]
+                )
         else:
             self.map_scaled = None
             self.map_size = 1,1
@@ -228,7 +227,7 @@ class Realtime(Overlay):
         """Draw map image"""
         # Transform map coordinates
         # Player vehicle orientation yaw radians + 180 deg rotation correction
-        plr_ori_rad = api.read.vehicle.orientation_yaw_radians() + 3.14159265
+        plr_ori_rad = api.read.vehicle.orientation_yaw() + 3.14159265
         # x, y position & offset relative to player
         rot_pos_x, rot_pos_y = calc.rotate_coordinate(
             plr_ori_rad,   # plr_ori_rad, rotate view
@@ -261,7 +260,7 @@ class Realtime(Overlay):
 
         painter.resetTransform()
 
-    def draw_vehicle(self, painter, veh_info, veh_draw_order):
+    def draw_vehicle(self, painter):
         """Draw vehicles"""
         if self.wcfg["show_circle_vehicle_shape"]:
             draw_shape = painter.drawEllipse
@@ -269,8 +268,7 @@ class Realtime(Overlay):
             draw_shape = painter.drawPolygon
 
         # Draw vehicle within view range
-        for index in veh_draw_order:
-            data = veh_info[index]
+        for data in minfo.vehicles.drawOrder:
             # Draw player vehicle
             if data.isPlayer:
                 painter.setPen(self.pen_outline["player"])
@@ -320,19 +318,19 @@ class Realtime(Overlay):
         painter.drawEllipse(0, 0, self.area_size, self.area_size)
 
     # Additional methods
-    def color_vehicle(self, veh_info):
+    def color_vehicle(self, data: VehicleData):
         """Compare lap differences & set color"""
-        if veh_info.isYellow and not veh_info.inPit:
+        if data.isYellow and not data.inPit:
             return self.brush_overall["yellow"]
-        if veh_info.inPit and not veh_info.isPlayer:
+        if data.inPit and not data.isPlayer:
             return self.brush_overall["in_pit"]
-        if veh_info.isPlayer:
+        if data.isPlayer:
             return self.brush_overall["player"]
-        if veh_info.positionOverall == 1:
+        if data.positionOverall == 1:
             return self.brush_overall["leader"]
-        if veh_info.isLapped > 0:
+        if data.isLapped > 0:
             return self.brush_overall["laps_ahead"]
-        if veh_info.isLapped < 0:
+        if data.isLapped < 0:
             return self.brush_overall["laps_behind"]
         return self.brush_overall["same_lap"]
 

@@ -43,13 +43,8 @@ from PySide2.QtWidgets import (
     QWidget,
 )
 
-from .. import app_signal, overlay_signal, realtime_state
-from ..api_control import api
-from ..const_file import FileFilter
-from ..module_control import mctrl
-from ..module_info import minfo
-from ..setting import cfg
-from ..userfile import set_relative_path
+from .. import api, app_signal, cfg, mctrl, minfo, overlay_signal, paths, realtime_state
+from ..constant import FILE
 from ..userfile.track_notes import COLUMN_PACENOTE
 from ._common import CompactButton, UIScaler
 
@@ -62,7 +57,6 @@ class PaceNotesPlayer(QMediaPlayer):
     def __init__(self, parent, config: dict):
         super().__init__(parent)
         self.mcfg = config
-        self.is_pyside6 = os.getenv("PYSIDE_OVERRIDE") == "6"
         self.audio_device = self.set_audio_device()
 
         # Set update timer
@@ -105,6 +99,9 @@ class PaceNotesPlayer(QMediaPlayer):
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
+        if not self.mcfg["enable_playback_while_spectating"] and realtime_state.spectating:
+            return
+
         # Out pit notes
         notes_index = minfo.pacenotes.out.currentIndex
         if self._last_notes_index != notes_index:
@@ -125,7 +122,7 @@ class PaceNotesPlayer(QMediaPlayer):
 
     def set_audio_device(self):
         """Set audio device"""
-        if self.is_pyside6:
+        if os.getenv("PYSIDE_OVERRIDE") == "6":
             from PySide6.QtMultimedia import QAudioOutput
 
             audio_device = QAudioOutput()
@@ -141,33 +138,37 @@ class PaceNotesPlayer(QMediaPlayer):
         sound_format = self.mcfg["pace_notes_sound_format"].strip(".")
         source_url = QUrl(f"{sound_path}{pace_note}.{sound_format}")
 
-        if self.is_pyside6:
+        if self.audio_device:
             return self.setSource(source_url)  # qt6
         return self.setMedia(source_url)  # qt5
 
     def set_volume(self, value: int) -> None:
         """Set volume (compatibility)"""
-        if self.is_pyside6 and self.audio_device:
+        if self.audio_device:
             return self.audio_device.setVolume(value / 100)  # qt6 (0.0 - 1.0)
         return self.setVolume(value)  # qt5 (0 - 100)
 
     def is_playing(self) -> bool:
         """Is playing state (compatibility)"""
-        if self.is_pyside6:
+        if self.audio_device:
             return self.playbackState() == QMediaPlayer.PlayingState  # qt6
         return self.state() == QMediaPlayer.State.PlayingState  # qt5
 
     def __update_queue(self, pace_note: str | None):
         """Update playback queue"""
-        if (pace_note is not None
-            and len(self._play_queue) < self.mcfg["pace_notes_sound_maximum_queue"]):
+        if (
+            pace_note
+            and len(self._play_queue) < self.mcfg["pace_notes_sound_maximum_queue"]
+        ):
             self._play_queue.append(pace_note)
 
     def __play_next_in_queue(self):
         """Play next sound in playback queue"""
         # Wait if is playing & not exceeded max duration
-        if (self.is_playing() and
-            self.position() < self.mcfg["pace_notes_sound_maximum_duration"] * 1000):
+        if (
+            self.is_playing()
+            and self.position() < self.mcfg["pace_notes_sound_maximum_duration"] * 1000
+        ):
             return
         # Play next sound in queue
         self.set_source()
@@ -240,6 +241,9 @@ class PaceNotesControl(QWidget):
         self.checkbox_playinpit = QCheckBox("Enable Playback While in Pit Lane")
         self.checkbox_playinpit.toggled.connect(self.toggle_playinpit_state)
 
+        self.checkbox_playwhilespectate = QCheckBox("Enable Playback While Spectating")
+        self.checkbox_playwhilespectate.toggled.connect(self.toggle_playwhilespectate_state)
+
         # Frame layout
         layout_file = QGridLayout()
         layout_file.setAlignment(Qt.AlignTop)
@@ -273,6 +277,7 @@ class PaceNotesControl(QWidget):
         layout_setting.addWidget(self.label_volume)
         layout_setting.addWidget(self.slider_volume)
         layout_setting.addWidget(self.checkbox_playinpit)
+        layout_setting.addWidget(self.checkbox_playwhilespectate)
 
         self.frame_control = QFrame(self)
         self.frame_control.setFrameShape(QFrame.StyledPanel)
@@ -307,6 +312,7 @@ class PaceNotesControl(QWidget):
         enabled = self.mcfg["enable"]
 
         self.toggle_playinpit_state(self.mcfg["enable_playback_while_in_pit"])
+        self.toggle_playwhilespectate_state(self.mcfg["enable_playback_while_spectating"])
         self.toggle_selector_state(self.mcfg["enable_manual_file_selector"])
         self.file_selector.setText(self.mcfg["pace_notes_file_name"])
         self.path_selector.setText(self.mcfg["pace_notes_sound_path"])
@@ -337,7 +343,7 @@ class PaceNotesControl(QWidget):
     def set_notes_path(self):
         """Set pace notes file path"""
         filepath = self.mcfg["pace_notes_file_name"]
-        filename_full = QFileDialog.getOpenFileName(self, dir=filepath, filter=FileFilter.TPPN)[0]
+        filename_full = QFileDialog.getOpenFileName(self, dir=filepath, filter=FILE.FILTER_TPPN)[0]
         if not filename_full:
             return
         self.file_selector.setText(filename_full)
@@ -351,7 +357,7 @@ class PaceNotesControl(QWidget):
         filename_full = QFileDialog.getExistingDirectory(self, dir=filepath)
         if not filename_full:
             return
-        filename_full = set_relative_path(filename_full)
+        filename_full = paths.relative_path(filename_full)
         self.path_selector.setText(filename_full)
         self.update_config("pace_notes_sound_path", filename_full)
 
@@ -389,6 +395,11 @@ class PaceNotesControl(QWidget):
         """Toggle playback in pit state"""
         self.checkbox_playinpit.setChecked(checked)
         self.update_config("enable_playback_while_in_pit", checked)
+
+    def toggle_playwhilespectate_state(self, checked: bool):
+        """Toggle playback while spectating"""
+        self.checkbox_playwhilespectate.setChecked(checked)
+        self.update_config("enable_playback_while_spectating", checked)
 
     def toggle_button_state(self, checked: bool):
         """Toggle button state"""

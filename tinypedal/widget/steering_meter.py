@@ -23,8 +23,8 @@ Steering meter Widget
 from PySide2.QtCore import QRectF, Qt
 from PySide2.QtGui import QPainter, QPen, QPixmap
 
+from .. import api
 from .. import calculation as calc
-from ..api_control import api
 from ._base import Overlay
 
 
@@ -72,8 +72,8 @@ class Realtime(Overlay):
         self.pen_text = QPen()
         self.pen_text.setColor(self.wcfg["font_color_steering_angle"])
         self.align_text = (
-            self.set_text_alignment("Left"),
-            self.set_text_alignment("Right"),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            Qt.AlignRight | Qt.AlignVCenter,
         )
 
         self.draw_scale_mark()
@@ -88,7 +88,7 @@ class Realtime(Overlay):
         if self.wcfg["manual_steering_range"] > 0:
             temp_rot_range = self.wcfg["manual_steering_range"]
         else:
-            temp_rot_range = api.read.inputs.steering_range_physical()
+            temp_rot_range = api.read.inputs.steering_range()
 
         # Recalculate scale mark
         if self.wcfg["show_scale_mark"] and self.rot_range != temp_rot_range:
@@ -101,7 +101,7 @@ class Realtime(Overlay):
             self.draw_scale_mark(mark_gap, mark_num)
 
         # Steering
-        temp_raw_steering = api.read.inputs.steering_raw()
+        temp_raw_steering = api.read.inputs.steering()
         if self.raw_steering != temp_raw_steering:
             self.raw_steering = temp_raw_steering
             self.update()

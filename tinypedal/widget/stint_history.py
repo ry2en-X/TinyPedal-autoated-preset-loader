@@ -25,8 +25,8 @@ from __future__ import annotations
 from collections import deque
 
 from .. import calculation as calc
-from .. import units
-from ..module_info import StintData, StintDataSet, minfo
+from .. import minfo, units
+from ..module_info import StintData
 from ._base import Overlay
 
 
@@ -48,14 +48,6 @@ class Realtime(Overlay):
         self.setFont(font)
         font_m = self.get_font_metrics(font)
 
-        if self.wcfg["show_caption"]:
-            font_cap = self.config_font(
-                self.wcfg["font_name"],
-                self.wcfg["font_size"] * self.wcfg["font_scale_caption"],
-                self.wcfg["font_weight"],
-            )
-            font_cap_m = self.get_font_metrics(font_cap)
-
         # Config variable
         layout_reversed = self.wcfg["layout"] != 0
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
@@ -69,7 +61,8 @@ class Realtime(Overlay):
         if self.wcfg["show_laps"]:
             self.bars_laps = self.set_rawtext(
                 text="---",
-                width=font_m.width * 3 + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * 3,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_laps"],
@@ -86,22 +79,12 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                cap_temp = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_laps"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(cap_temp, row_caption, self.wcfg["display_order_laps"])
-
         # Time
         if self.wcfg["show_time"]:
             self.bars_time = self.set_rawtext(
                 text="--:--",
-                width=font_m.width * 5 + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * 5,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_time"],
@@ -118,17 +101,6 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                cap_temp = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_time"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(cap_temp, row_caption, self.wcfg["display_order_time"])
-
         # Fuel
         if self.wcfg["show_fuel"]:
             if self.wcfg["show_fuel_sign"]:
@@ -140,7 +112,8 @@ class Realtime(Overlay):
             self.width_fuel = 2 + decimals_fuel
             self.bars_fuel = self.set_rawtext(
                 text=f"-.{'-' * decimals_fuel}{self.sign_fuel}",
-                width=font_m.width * (self.width_fuel + len(self.sign_fuel)) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * (self.width_fuel + len(self.sign_fuel)),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_fuel"],
@@ -157,22 +130,12 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                self.cap_fuel = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_fuel"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(self.cap_fuel, row_caption, self.wcfg["display_order_fuel"])
-
         # Tyre compound
         if self.wcfg["show_tyre"]:
             self.bars_cmpd = self.set_rawtext(
                 text="----",
-                width=font_m.width * 4 + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * 4,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_tyre"],
@@ -189,17 +152,6 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                cap_temp = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_tyre"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(cap_temp, row_caption, self.wcfg["display_order_tyre"])
-
         # Tyre wear
         if self.wcfg["show_wear"]:
             if self.wcfg["show_wear_sign"]:
@@ -210,7 +162,8 @@ class Realtime(Overlay):
             self.width_wear = 2 + decimals_wear
             self.bars_wear = self.set_rawtext(
                 text=f"-.{'-' * decimals_wear}{self.sign_wear}",
-                width=font_m.width * (self.width_wear + len(self.sign_wear)) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * (self.width_wear + len(self.sign_wear)),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_wear"],
@@ -227,24 +180,14 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                cap_temp = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_wear"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(cap_temp, row_caption, self.wcfg["display_order_wear"])
-
         # Stint delta
         if self.wcfg["show_delta"]:
             decimals_delta = max(self.wcfg["decimal_places_delta"], 1)
             self.width_delta = 3 + decimals_delta
             self.bars_delta = self.set_rawtext(
                 text=f"--.{'-' * decimals_delta}",
-                width=font_m.width * self.width_delta + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * self.width_delta,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_delta"],
@@ -261,17 +204,6 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                cap_temp = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_delta"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(cap_temp, row_caption, self.wcfg["display_order_delta"])
-
         # Stint consistency
         if self.wcfg["show_consistency"]:
             if self.wcfg["show_consistency_sign"]:
@@ -282,7 +214,8 @@ class Realtime(Overlay):
             self.width_consist = 3 + decimals_consist
             self.bars_consist = self.set_rawtext(
                 text=f"--.{'-' * decimals_consist}{self.sign_consist}",
-                width=font_m.width * (self.width_consist + len(self.sign_consist)) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * (self.width_consist + len(self.sign_consist)),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_last_stint_consistency"],
@@ -299,16 +232,13 @@ class Realtime(Overlay):
                 bottom_to_top=layout_reversed,
             )
 
-            if self.wcfg["show_caption"]:
-                cap_temp = self.set_rawtext(
-                    font=font_cap,
-                    text=self.wcfg["caption_text_consistency"],
-                    fixed_height=font_cap_m.height,
-                    offset_y=font_cap_m.voffset,
-                    fg_color=self.wcfg["font_color_caption"],
-                    bg_color=self.wcfg["background_color_caption"],
-                )
-                layout.addWidget(cap_temp, row_caption, self.wcfg["display_order_consistency"])
+        # Caption
+        if self.wcfg["show_caption"]:
+            self.set_grid_layout_table_caption(layout=layout, row=row_caption)
+            if self.wcfg["show_fuel"]:
+                self.cap_fuel = layout.itemAtPosition(
+                    row_caption, self.wcfg["display_order_fuel"]
+                ).widget()
 
         # Last data
         self.last_data_version = -1
@@ -421,7 +351,7 @@ class Realtime(Overlay):
             target.text = f"{text_consist}{self.sign_consist}"
             target.update()
 
-    def update_stint_history(self, dataset: deque[StintDataSet]):
+    def update_stint_history(self, dataset: deque[StintData]):
         """Stint history data"""
         show_energy = self.wcfg["show_virtual_energy_if_available"]
         for index in range(self.stint_slot):

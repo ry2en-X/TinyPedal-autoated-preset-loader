@@ -33,8 +33,9 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..const_file import ConfigType
-from ..setting import cfg, copy_setting
+from .. import cfg
+from ..constant import CONFIG
+from ..userfile.json_setting import copy_setting
 from ._common import (
     QVAL_COLOR,
     QVAL_HEATMAP,
@@ -147,12 +148,9 @@ class HeatmapEditor(BaseEditor):
     def refresh_table(self):
         """Refresh temperature table"""
         self.table_heatmap.setRowCount(0)
-        row_index = 0
-
         self._verify_enabled = False
-        for temperature, color in self.selected_heatmap_dict.items():
+        for row_index, (temperature, color) in enumerate(self.selected_heatmap_dict.items()):
             self.add_temperature_entry(row_index, float(temperature), color)
-            row_index += 1
         self._verify_enabled = True
 
     def __add_option_color(self, key):
@@ -239,9 +237,9 @@ class HeatmapEditor(BaseEditor):
         self.add_temperature_entry(row_index, temperature, color)
         self.table_heatmap.setCurrentCell(row_index, 0)
 
-    def delete_temperature(self, row_index: int):
+    def delete_temperature(self):
         """Delete temperature entry"""
-        selected_rows = set(data.row() for data in self.table_heatmap.selectedIndexes())
+        selected_rows = {data.row() for data in self.table_heatmap.selectedIndexes()}
         if not selected_rows:
             QMessageBox.warning(self, "Error", "No data selected.")
             return
@@ -327,7 +325,7 @@ class HeatmapEditor(BaseEditor):
         """Save heatmap"""
         self.update_heatmap_temp()
         cfg.user.heatmap = copy_setting(self.heatmap_temp)
-        cfg.save(0, config_type=ConfigType.HEATMAP)
+        cfg.save(0, config_type=CONFIG.TYPE_HEATMAP)
         while cfg.is_saving:  # wait saving finish
             time.sleep(0.01)
         self.reloading()

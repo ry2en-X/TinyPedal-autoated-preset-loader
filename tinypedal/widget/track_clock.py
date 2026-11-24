@@ -22,10 +22,9 @@ Track clock Widget
 
 from time import gmtime, strftime
 
+from .. import api, minfo
 from .. import calculation as calc
-from ..api_control import api
-from ..const_common import TEXT_NA, TEXT_TREND_SIGN
-from ..module_info import minfo
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -56,7 +55,8 @@ class Realtime(Overlay):
             text_clock = strftime(self.wcfg["track_clock_format"], gmtime(0))
             self.bar_track_clock = self.set_rawtext(
                 text=text_clock,
-                width=font_m.width * len(text_clock) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * len(text_clock),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_track_clock"],
@@ -73,7 +73,8 @@ class Realtime(Overlay):
             text_time_scale = f"{self.prefix_time_scale}1"
             self.bar_time_scale = self.set_rawtext(
                 text=text_time_scale,
-                width=font_m.width * (1 + len(text_time_scale)) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * (1 + len(text_time_scale)),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_time_scale"],
@@ -90,7 +91,8 @@ class Realtime(Overlay):
             text_countdown = f"-{calc.sec2countdown(0)}"
             self.bar_countdown = self.set_rawtext(
                 text=text_countdown,
-                width=font_m.width * len(text_countdown) + bar_padx,
+                padding=bar_padx,
+                width=font_m.width * len(text_countdown),
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.wcfg["font_color_sunlight_phase_countdown"],
@@ -103,8 +105,9 @@ class Realtime(Overlay):
                 self.wcfg["font_color_phase_night"],
             )
             self.bar_phase_sign = self.set_rawtext(
-                text=TEXT_TREND_SIGN[0],
-                width=font_m.width + bar_padx,
+                text=DATA.TREND_SIGN[0],
+                padding=bar_padx,
+                width=font_m.width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
                 fg_color=self.bar_style_phase[0],
@@ -123,10 +126,7 @@ class Realtime(Overlay):
         else:
             time_scale = self.time_scale_override
 
-        track_time = api.read.session.track_time()
-        if track_time < 0:
-            track_time = calc.clock_time(api.read.session.elapsed(), api.read.session.start(), time_scale)
-        track_time = calc.zero_max(track_time, 86400)
+        track_time = api.read.session.track_time(time_scale)
 
         # Track clock
         if self.wcfg["show_track_clock"]:
@@ -140,7 +140,7 @@ class Realtime(Overlay):
         if self.wcfg["show_sunlight_phase_countdown"]:
             sun_phases = minfo.mapping.sunlightPhases
 
-            if sun_phases is None:
+            if not sun_phases:
                 countdown = 0
                 next_phase_index = 0
             else:
@@ -175,7 +175,7 @@ class Realtime(Overlay):
             if 0 <= data <= 60:
                 text = f"{self.prefix_time_scale}{data}"
             else:
-                text = TEXT_NA
+                text = DATA.TEXT_NA
             target.text = text
             target.update()
 
@@ -202,6 +202,6 @@ class Realtime(Overlay):
             elif data == 3:  # midnight
                 sign_index = 2
                 color_index = 1
-            target.text = TEXT_TREND_SIGN[sign_index]
+            target.text = DATA.TREND_SIGN[sign_index]
             target.fg = self.bar_style_phase[color_index]
             target.update()

@@ -23,10 +23,8 @@ Elevation Widget
 from PySide2.QtCore import QRectF, Qt
 from PySide2.QtGui import QBrush, QPainter, QPainterPath, QPen, QPixmap
 
+from .. import api, minfo, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..module_info import minfo
 from ._base import Overlay
 
 
@@ -109,12 +107,11 @@ class Realtime(Overlay):
             self.update()
 
     # GUI update methods
-    def update_elevation(self, data):
+    def update_elevation(self, modified):
         """Elevation map update"""
-        if self.last_modified != data:
-            self.last_modified = data
-            raw_data = minfo.mapping.elevations if data != -1 else None
-            map_path = self.create_elevation_path(raw_data)
+        if self.last_modified != modified:
+            self.last_modified = modified
+            map_path = self.create_elevation_path(minfo.mapping.elevations)
             self.draw_background(map_path)
             self.draw_progress(map_path)
             self.draw_progress_line(map_path)
@@ -158,7 +155,7 @@ class Realtime(Overlay):
                 f"1:{map_scale}"
             )
 
-    def create_elevation_path(self, raw_coords=None):
+    def create_elevation_path(self, raw_coords):
         """Create elevation path"""
         map_path = QPainterPath()
         if raw_coords:
@@ -305,7 +302,7 @@ class Realtime(Overlay):
 
         # Draw sector line
         sectors_index = minfo.mapping.sectors
-        if self.wcfg["show_sector_line"] and self.map_scaled and isinstance(sectors_index, tuple):
+        if self.wcfg["show_sector_line"] and self.map_scaled and sectors_index:
             pen.setWidth(self.wcfg["sector_line_width"])
             pen.setColor(self.wcfg["sector_line_color"])
             painter.setPen(pen)

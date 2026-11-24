@@ -20,12 +20,11 @@
 Hybrid module
 """
 
+from .. import api, minfo, realtime_state
 from .. import calculation as calc
-from .. import realtime_state
-from ..api_control import api
-from ..const_common import DELTA_DEFAULT, DELTA_ZERO, FLOAT_INF, MAX_SECONDS
-from ..module_info import HybridInfo, minfo
-from ..validator import generator_init
+from ..constant import DATA
+from ..decorator import generator_init
+from ..module_info import HybridInfo
 from ._base import DataModule
 
 
@@ -33,9 +32,6 @@ class Realtime(DataModule):
     """Hybrid data"""
 
     __slots__ = ()
-
-    def __init__(self, config, module_name):
-        super().__init__(config, module_name)
 
     def update_data(self):
         """Update module data"""
@@ -80,25 +76,25 @@ def calc_motor(output: HybridInfo, min_delta_distance: float):
                 continue
             last_reset = reset
 
-            battery_drain = 0
-            battery_regen = 0
-            battery_drain_last = 0
-            battery_regen_last = 0
-            last_battery_charge = 0
+            battery_drain = 0.0
+            battery_regen = 0.0
+            battery_drain_last = 0.0
+            battery_regen_last = 0.0
+            last_battery_charge = 0.0
             last_motor_state = 0
             alt_motor_state = 1  # alternative state in case motor state not available
             alt_motor_state_debounce = 0  # alternative state reset debounce counter
-            motor_active_timer = 0
+            motor_active_timer = 0.0
             motor_active_timer_start = False
-            motor_inactive_timer = MAX_SECONDS
+            motor_inactive_timer = DATA.MAX_SECONDS
             motor_inactive_timer_start = False
-            lap_etime_last = 0
-            last_lap_stime = FLOAT_INF  # last lap start time
+            last_elapsed_time = 0.0
+            last_lap_number = DATA.MAX_LAPS
 
             delta_reset = False
             delta_recording = False
-            delta_array_raw = [DELTA_ZERO]  # distance, battery net change
-            delta_array_last = DELTA_DEFAULT
+            delta_array_raw = [DATA.DELTA_ZERO]  # distance, battery net change
+            delta_array_last = DATA.DELTA_DEFAULT
             pos_last = 0.0  # last checked vehicle position
             net_change_last = 0.0
             est_net_change = 0.0  # estimated battery charge net change
@@ -106,20 +102,22 @@ def calc_motor(output: HybridInfo, min_delta_distance: float):
             is_valid_delta = False
 
         # Read telemetry
-        lap_stime = api.read.timing.start()
-        lap_etime = api.read.timing.elapsed()
+        lap_number = api.read.lap.completed()
+        elapsed_time = api.read.timing.elapsed()
         battery_charge = api.read.emotor.battery_charge() * 100
         motor_state = api.read.emotor.state()
+        laptime_curr = api.read.timing.current_laptime()
+        pos_curr = api.read.lap.distance()
 
         # Lap start & finish detection
-        if lap_stime > last_lap_stime:
+        if last_lap_number != lap_number and 0 < pos_curr < 200:
             battery_drain_last = battery_drain
             battery_regen_last = battery_regen
             battery_drain = 0
             battery_regen = 0
             motor_active_timer = 0
             delta_reset = True
-        last_lap_stime = lap_stime  # reset
+            last_lap_number = lap_number
 
         # Battery charge consumption
         if last_battery_charge:
@@ -144,51 +142,48 @@ def calc_motor(output: HybridInfo, min_delta_distance: float):
         # Active timer
         if last_motor_state != motor_state and motor_state == 2:
             motor_active_timer_start = True
-            lap_etime_last = lap_etime
+            last_elapsed_time = elapsed_time
             last_motor_state = motor_state
 
         if motor_active_timer_start:
-            motor_active_timer += lap_etime - lap_etime_last
-            lap_etime_last = lap_etime
+            motor_active_timer += elapsed_time - last_elapsed_time
+            last_elapsed_time = elapsed_time
             if motor_state != 2:
                 motor_active_timer_start = False
-                motor_inactive_timer_start = lap_etime
+                motor_inactive_timer_start = elapsed_time
                 last_motor_state = motor_state
 
         if motor_inactive_timer_start:
-            motor_inactive_timer = lap_etime - motor_inactive_timer_start
+            motor_inactive_timer = elapsed_time - motor_inactive_timer_start
             if motor_state == 2:
                 motor_inactive_timer_start = False
-                motor_inactive_timer = MAX_SECONDS
+                motor_inactive_timer = DATA.MAX_SECONDS
 
         # Battery charge delta calculation
         if motor_state != 0:
-            laptime_curr = api.read.timing.current_laptime()
-            pos_curr = api.read.lap.distance()
             is_pit_lap |= api.read.vehicle.in_pits()
 
             if delta_reset:
                 delta_reset = False
-                if len(delta_array_raw) > 1 and not is_pit_lap:
+                if not is_pit_lap and len(delta_array_raw) > 1:
                     delta_array_last = tuple(delta_array_raw)
-                delta_array_raw[:] = DELTA_DEFAULT
+                delta_array_raw[:] = DATA.DELTA_DEFAULT
                 pos_last = pos_curr
-                delta_recording = laptime_curr < 1
+                delta_recording = True
                 net_change_last = battery_regen_last - battery_drain_last
                 is_valid_delta = len(delta_array_last) > 1
                 is_pit_lap = 0
 
-            # Distance desync check at start of new lap, reset if higher than normal distance
-            if 0 < laptime_curr < 1 and pos_curr > 300:
-                pos_last = pos_curr = 0
-            elif pos_last > pos_curr:
-                pos_last = pos_curr
-
             # Update if position value is different & positive
             net_change_curr = battery_regen - battery_drain
-            if delta_recording and pos_curr - pos_last >= min_delta_distance:
-                delta_array_raw.append((pos_curr, net_change_curr))
-                pos_last = pos_curr
+            if delta_recording:
+                delta_pos = pos_curr - pos_last
+                if delta_pos > 100:  # detect teleporting
+                    delta_recording = False
+                    delta_array_raw[:] = DATA.DELTA_DEFAULT
+                elif delta_pos >= min_delta_distance:
+                    delta_array_raw.append((pos_curr, net_change_curr))
+                    pos_last = pos_curr
 
             # Net change delta
             if is_valid_delta:

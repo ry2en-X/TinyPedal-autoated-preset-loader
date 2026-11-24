@@ -33,17 +33,11 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..api_control import api
-from ..const_file import ConfigType
-from ..setting import cfg, copy_setting
-from ..userfile.heatmap import HEATMAP_DEFAULT_BRAKE, set_predefined_brake_name
-from ._common import (
-    BaseEditor,
-    CompactButton,
-    FloatTableItem,
-    UIScaler,
-    #TableBatchReplace,
-)
+from .. import api, cfg
+from ..constant import CONFIG, HEATMAP
+from ..userfile.heatmap import set_predefined_brake_name
+from ..userfile.json_setting import copy_setting
+from ._common import BaseEditor, CompactButton, FloatTableItem, UIScaler
 
 HEADER_BRAKES = "Brake name","Failure (mm)","Heatmap name"
 
@@ -129,20 +123,21 @@ class BrakeEditor(BaseEditor):
     def refresh_table(self):
         """Refresh brakes list"""
         self.table_brakes.setRowCount(0)
-        row_index = 0
-        for class_name, brake_data in self.brakes_temp.items():
+        for row_index, (class_name, brake_data) in enumerate(self.brakes_temp.items()):
             self.add_brake_entry(
                 row_index,
                 class_name,
                 brake_data["failure_thickness"],
                 brake_data["heatmap"],
             )
-            row_index += 1
 
     def __add_option_combolist(self, key):
         """Combo droplist string"""
+        available_heatmap = cfg.user.heatmap.keys()
         combo_edit = QComboBox()
-        combo_edit.addItems(cfg.user.heatmap.keys())
+        combo_edit.addItems(available_heatmap)
+        if key not in available_heatmap:
+            key = HEATMAP.BRAKE_DEFAULT
         combo_edit.setCurrentText(key)
         combo_edit.currentTextChanged.connect(self.set_modified)
         return combo_edit
@@ -160,13 +155,14 @@ class BrakeEditor(BaseEditor):
         veh_total = api.read.vehicle.total_vehicles()
         for index in range(veh_total):
             class_name = api.read.vehicle.class_name(index)
-            vehicle_name = api.read.vehicle.vehicle_name(index)
+            vehicle_name = api.read.vehicle.vehicle_model(index)
+            compound_front, compound_rear = api.read.brake.compound_name()
             brake_names = (
-                set_predefined_brake_name(class_name, vehicle_name, True),
-                set_predefined_brake_name(class_name, vehicle_name, False),
+                set_predefined_brake_name(class_name, vehicle_name, compound_front, True),
+                set_predefined_brake_name(class_name, vehicle_name, compound_rear, False),
             )
             for brake in brake_names:
-                if not self.is_value_in_table(brake, self.table_brakes):
+                if brake and not self.is_value_in_table(brake, self.table_brakes):
                     self.add_brake_entry(row_index, brake, 0)
                     self.table_brakes.setCurrentCell(row_index, 0)
                     row_index += 1
@@ -178,7 +174,7 @@ class BrakeEditor(BaseEditor):
 
     def add_brake_entry(
         self, row_index: int, class_name: str, failure_thickness: float,
-        heatmap_name: str = HEATMAP_DEFAULT_BRAKE):
+        heatmap_name: str = HEATMAP.BRAKE_DEFAULT):
         """Add new brake entry to table"""
         self.table_brakes.insertRow(row_index)
         self.table_brakes.setItem(row_index, 0, QTableWidgetItem(class_name))
@@ -193,7 +189,7 @@ class BrakeEditor(BaseEditor):
 
     def delete_brake(self):
         """Delete brake entry"""
-        selected_rows = set(data.row() for data in self.table_brakes.selectedIndexes())
+        selected_rows = {data.row() for data in self.table_brakes.selectedIndexes()}
         if not selected_rows:
             QMessageBox.warning(self, "Error", "No data selected.")
             return
@@ -248,7 +244,7 @@ class BrakeEditor(BaseEditor):
         """Save setting"""
         self.update_brakes_temp()
         cfg.user.brakes = copy_setting(self.brakes_temp)
-        cfg.save(0, config_type=ConfigType.BRAKES)
+        cfg.save(0, config_type=CONFIG.TYPE_BRAKES)
         while cfg.is_saving:  # wait saving finish
             time.sleep(0.01)
         self.reloading()

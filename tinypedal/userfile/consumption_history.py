@@ -24,26 +24,38 @@ from __future__ import annotations
 
 import csv
 import logging
+from typing import Sequence
 
-from ..const_file import FileExt
-from ..module_info import ConsumptionDataSet
+from ..constant import FILE
+from ..module_info import ConsumptionData
 from ..validator import dict_value_type, invalid_save_name
 
 logger = logging.getLogger(__name__)
 
 
+def parse_consumption(data_reader, default_data):
+    """Parse consumption data"""
+    for data in data_reader:
+        # Update deprecated tyre wear data
+        if not data.get("tyreWearFL"):
+            tyre_wear_avg = data.get("tyreAvgWearLast")
+            if tyre_wear_avg:  # replace with individual wear
+                data["tyreWearFL"] = tyre_wear_avg
+                data["tyreWearFR"] = tyre_wear_avg
+                data["tyreWearRL"] = tyre_wear_avg
+                data["tyreWearRR"] = tyre_wear_avg
+        yield ConsumptionData(**dict_value_type(data, default_data))
+
+
 def load_consumption_history_file(
-    filepath: str, filename: str, extension: str = FileExt.CONSUMPTION
-) -> tuple[ConsumptionDataSet, ...]:
+    filepath: str, filename: str, extension: str = FILE.EXT_CONSUMPTION
+) -> tuple[ConsumptionData, ...]:
     """Load fuel/energy consumption history file (*.consumption)"""
     try:
         with open(f"{filepath}{filename}{extension}", newline="", encoding="utf-8") as csvfile:
             data_reader = csv.DictReader(csvfile, restval="", restkey="unknown")
-            default_data = ConsumptionDataSet._field_defaults
-            dataset = tuple(
-                ConsumptionDataSet(**dict_value_type(data, default_data))
-                for data in data_reader
-            )
+            default_data = ConsumptionData._field_defaults
+            dataset = tuple(parse_consumption(data_reader, default_data))
             if not dataset:
                 raise ValueError
         return dataset
@@ -51,17 +63,17 @@ def load_consumption_history_file(
         logger.info("MISSING: consumption history (%s) data", extension)
     except (IndexError, KeyError, ValueError, TypeError):
         logger.info("MISSING: invalid consumption history (%s) data", extension)
-    return (ConsumptionDataSet(),)
+    return (ConsumptionData(),)
 
 
 def save_consumption_history_file(
-    dataset: tuple, filepath: str, filename: str, extension: str = FileExt.CONSUMPTION
+    dataset: Sequence[ConsumptionData], filepath: str, filename: str, extension: str = FILE.EXT_CONSUMPTION
 ) -> None:
     """Save fuel/energy consumption history file (*.consumption)"""
     if len(dataset) < 2 or invalid_save_name(filename):
         return
     with open(f"{filepath}{filename}{extension}", "w", newline="", encoding="utf-8") as csvfile:
         data_writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
-        data_writer.writerow(ConsumptionDataSet._fields)  # write field name as column header
+        data_writer.writerow(ConsumptionData._fields)  # write field name as column header
         data_writer.writerows(dataset)
         logger.info("USERDATA: %s%s saved", filename, extension)

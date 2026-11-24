@@ -23,9 +23,8 @@ Instrument Widget
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QPixmap
 
-from ..api_control import api
-from ..const_file import ImageFile
-from ..module_info import minfo
+from .. import api, minfo
+from ..constant import FILE
 from ..userfile.custom_image import split_pixmap_image
 from ._base import Overlay
 
@@ -43,7 +42,7 @@ class Realtime(Overlay):
         icon_size = max(self.wcfg["icon_size"], 16) // 2 * 2
 
         # Config canvas
-        pixmap_icon = QPixmap(ImageFile.INSTRUMENT).scaledToWidth(
+        pixmap_icon = QPixmap(FILE.IMAGE_INSTRUMENT).scaledToWidth(
             icon_size * 2, mode=Qt.SmoothTransformation)
         # 0 = enabled icon state, 1 = disabled icon state.
         self.pixmap_headlights = create_icon_set(pixmap_icon, icon_size, 0)
@@ -68,8 +67,9 @@ class Realtime(Overlay):
         # Ignition
         if self.wcfg["show_ignition"]:
             self.color_ignition = (
-                self.wcfg["background_color_ignition"],
+                self.wcfg["warning_color_engine_off"],
                 self.wcfg["warning_color_stalling"],
+                self.wcfg["background_color_ignition"],
             )
             self.bar_ignition = self.set_rawimage(
                 image=self.pixmap_ignition[1],
@@ -146,10 +146,8 @@ class Realtime(Overlay):
             self.update_headlights(self.bar_headlights, headlights)
 
         # Ignition
-        # 0 ignition & engine off, 1 ignition on & engine off, 2 ignition & engine on
         if self.wcfg["show_ignition"]:
-            ignition = api.read.switch.ignition_starter() * (
-                1 + (api.read.engine.rpm() > self.wcfg["stalling_rpm_threshold"]))
+            ignition = api.read.switch.ignition(stall_rpm=self.wcfg["stalling_rpm_threshold"])
             self.update_ignition(self.bar_ignition, ignition)
 
         # Clutch
@@ -189,7 +187,7 @@ class Realtime(Overlay):
         if target.last != data:
             target.last = data
             target.image = self.pixmap_ignition[data == 0]
-            target.bg = self.color_ignition[data == 1]
+            target.bg = self.color_ignition[data]
             target.update()
 
     def update_clutch(self, target, data):

@@ -30,10 +30,10 @@ from PySide2.QtGui import QFont, QFontMetrics, QPalette, QPixmap
 from PySide2.QtWidgets import QGridLayout, QLayout, QMenu, QWidget
 
 from .. import app_signal, overlay_signal, realtime_state
-from ..const_app import APP_NAME
+from ..configuration import Configuration
+from ..constant import APP
 from ..formatter import format_module_name
 from ..regex_pattern import FONT_WEIGHT_MAP
-from ..setting import Setting
 from ._common import FontMetrics, MousePosition
 from ._painter import RawImage, RawText
 
@@ -44,18 +44,23 @@ mousepos = MousePosition()  # single instance shared by all widgets
 class Base(QWidget):
     """Base window"""
 
-    def __init__(self, config: Setting, widget_name: str):
-        super().__init__()
-        self.widget_name = widget_name
+    def __init__(self, config: Configuration, widget_name: str):
+        # Set parent if "combined_mode" option enabled (None if not)
+        from .. import container
+
+        super().__init__(container.overlay)
 
         # Base config
+        self.widget_name = widget_name
         self.cfg = config
+        self._combined_mode = self.cfg.overlay["combined_mode"]  # store state
 
         # Widget config
         self.wcfg = validate_option(self.cfg.user.setting[widget_name])
 
         # Base setting
-        self.setWindowTitle(f"{APP_NAME} - {widget_name.capitalize()}")
+        if not self._combined_mode:
+            self.setWindowTitle(f"{APP.TINYPEDAL} - {widget_name.capitalize()}")
         self.move(self.wcfg["position_x"], self.wcfg["position_y"])
 
         # Set update timer
@@ -68,8 +73,11 @@ class Base(QWidget):
     def start(self):
         """Set initial widget state in orders, and start update"""
         self.__connect_signal()
-        self.__set_window_attributes()  # 1
-        self.__set_window_flags()  # 2
+        if self._combined_mode:
+            self.show()
+        else:
+            self.__set_window_attributes()  # 1
+            self.__set_window_flags()  # 2
         self.__toggle_timer(not realtime_state.active)
 
     def stop(self):
@@ -158,21 +166,23 @@ class Base(QWidget):
 
     def __connect_signal(self):
         """Connect overlay lock and hide signal"""
-        overlay_signal.locked.connect(self.__toggle_lock)
-        overlay_signal.hidden.connect(self.setHidden)
         overlay_signal.paused.connect(self.__toggle_timer)
-        overlay_signal.iconify.connect(self.__toggle_vr_compat)
+        if not self._combined_mode:
+            overlay_signal.locked.connect(self.__toggle_lock)
+            overlay_signal.hidden.connect(self.setHidden)
+            overlay_signal.iconify.connect(self.__toggle_vr_compat)
 
     def __break_signal(self):
         """Disconnect overlay lock and hide signal"""
-        overlay_signal.locked.disconnect(self.__toggle_lock)
-        overlay_signal.hidden.disconnect(self.setHidden)
         overlay_signal.paused.disconnect(self.__toggle_timer)
-        overlay_signal.iconify.disconnect(self.__toggle_vr_compat)
+        if not self._combined_mode:
+            overlay_signal.locked.disconnect(self.__toggle_lock)
+            overlay_signal.hidden.disconnect(self.setHidden)
+            overlay_signal.iconify.disconnect(self.__toggle_vr_compat)
 
     def mouseMoveEvent(self, event):
         """Update widget position"""
-        if mousepos.valid() and event.buttons() == Qt.LeftButton:
+        if mousepos.valid():
             # Snapping to reference grid if Ctrl is pressed
             if (event.modifiers() & Qt.ControlModifier):
                 self.move(mousepos.snapping(self, event.globalPos()))
@@ -276,6 +286,7 @@ class Overlay(Base):
         font.setHintingPreference(QFont.PreferNoHinting)
         font_metrics = QFontMetrics(font)
         return FontMetrics(
+            metrics=font_metrics,
             width=font_metrics.averageCharWidth(),
             height=font_metrics.height(),
             leading=font_metrics.leading(),
@@ -307,40 +318,40 @@ class Overlay(Base):
         return self.wcfg["font_offset_vertical"]
 
     @staticmethod
-    def set_padding(size: int, scale: float, side: int = 2) -> int:
+    def set_padding(size: int, scale: float) -> int:
         """Set padding
 
         Args:
             size: reference font size in pixel.
             scale: scale font size for relative padding.
-            side: number of sides to add padding.
 
         Returns:
             Padding size in pixel.
         """
-        return round(size * scale) * side
+        return round(size * scale)
 
     @staticmethod
-    def set_text_alignment(align: int | str = 0) -> Qt.Alignment:
+    def set_text_alignment(align: str = "Center") -> Qt.Alignment:
         """Set text alignment
 
         Args:
-            align: 0 or "Center", 1 or "Left", 2 or "Right".
+            align: "Center", "Left", "Right".
 
         Returns:
             Qt alignment.
         """
-        if align == 0 or align == "Center":
-            return Qt.AlignCenter
-        if align == 1 or align == "Left":
+        if align == "Left":
             return Qt.AlignLeft | Qt.AlignVCenter
-        return Qt.AlignRight | Qt.AlignVCenter
+        if align == "Right":
+            return Qt.AlignRight | Qt.AlignVCenter
+        return Qt.AlignCenter
 
     def set_rawtext(
         self,
         *,
         font: QFont | None = None,
         text: str = "",
+        padding: int = 0,
         width: int = 0,
         height: int = 0,
         fixed_width: int = 0,
@@ -348,7 +359,7 @@ class Overlay(Base):
         offset_y: int = 0,
         fg_color: str = "",
         bg_color: str = "",
-        alignment: Qt.Alignment = Qt.AlignCenter,
+        alignment: str = "Center",
         last: Any | None = None,
         count: int = 1,
     ) -> tuple[RawText, ...] | RawText:
@@ -357,6 +368,7 @@ class Overlay(Base):
         Args:
             font: QFont.
             text: bar text.
+            padding: bar padding.
             width: fixed width in pixel.
             height: fixed height in pixel.
             fixed_width: fixed width in pixel, takes priority over width.
@@ -364,7 +376,7 @@ class Overlay(Base):
             offset_y: font vertical offset in pixel.
             fg_color: foreground (font) color.
             bg_color: background color.
-            alignment: Qt.Alignment.
+            alignment: 'Center', 'Left', 'Right'.
             last: cache last data for comparison.
             count: number of RawText to set.
 
@@ -376,6 +388,7 @@ class Overlay(Base):
             RawText(
                 parent=self,
                 font=font,
+                padding=padding,
                 width=width,
                 height=height,
                 fixed_width=fixed_width,
@@ -510,6 +523,96 @@ class Overlay(Base):
             if hide_start <= row:
                 target.hide()
 
+    def set_grid_layout_table_caption(
+        self,
+        layout: QGridLayout,
+        padding: int = 0,
+        row: int = 0,
+        row_start: int = 1,
+        transparent_columns: tuple[str, ...] = (),
+    ):
+        """Set grid layout - table caption row
+
+        Set caption for each "display_order_*" column that contains widget at row_start,
+        with text from corresponding "caption_text_*" option. Caption expands column width
+        to fit text. Empty caption text fills column with caption background only.
+
+        If "caption_text_title" option is not empty, title text is displayed (left aligned)
+        across leading columns that have empty caption text, without expanding column width.
+        Leading transparent columns are excluded from title.
+
+        Args:
+            layout: table grid layout.
+            padding: horizontal padding in pixel.
+            row: caption row index.
+            row_start: table row start index, for checking column existence.
+            transparent_columns: column names that use transparent caption background,
+                except when within title.
+        """
+        font_cap = self.config_font(
+            self.wcfg["font_name"],
+            self.wcfg["font_size"] * self.wcfg["font_scale_caption"],
+            self.wcfg["font_weight"],
+        )
+        font_cap_m = self.get_font_metrics(font_cap)
+
+        # Caption text of existing columns, sorted by column index
+        captions = sorted(
+            (
+                column,
+                self.wcfg[f"caption_text_{name}"],  # raise error if caption text option missing
+                self.wcfg.get(f"{name}_text_alignment", "Center"),
+                name in transparent_columns,
+            )
+            for key, column in self.wcfg.items()
+            if key.startswith("display_order_")
+            and layout.itemAtPosition(row_start, column) is not None
+            and (name := key[len("display_order_") :])  # get column type name
+        )
+
+        # Title across leading columns with empty caption text, after transparent columns
+        title = self.wcfg.get("caption_text_title", "")
+        title_start = 0
+        title_span = 0
+        if title:
+            for _, _, _, transparent in captions:
+                if not transparent:
+                    break
+                title_start += 1
+            for _, text, _, _ in captions[title_start:]:
+                if text:
+                    break
+                title_span += 1
+        title_end = title_start + title_span
+        if title_span:
+            cap_temp = self.set_rawtext(
+                font=font_cap,
+                text=title,
+                padding=padding,
+                fixed_height=font_cap_m.height,
+                offset_y=font_cap_m.voffset,
+                fg_color=self.wcfg["font_color_caption"],
+                bg_color=self.wcfg["background_color_caption"],
+                alignment="Left",
+            )
+            column_first = captions[title_start][0]
+            column_last = captions[title_end - 1][0]
+            layout.addWidget(cap_temp, row, column_first, 1, column_last - column_first + 1)
+
+        for column, text, align, transparent in captions[:title_start] + captions[title_end:]:
+            cap_temp = self.set_rawtext(
+                font=font_cap,
+                text=text,
+                padding=padding,
+                width=font_cap_m.metrics.horizontalAdvance(text),
+                fixed_height=font_cap_m.height,
+                offset_y=font_cap_m.voffset,
+                fg_color=self.wcfg["font_color_caption"],
+                bg_color="#00000000" if transparent else self.wcfg["background_color_caption"],
+                alignment=align,
+            )
+            layout.addWidget(cap_temp, row, column)
+
     @staticmethod
     def set_grid_layout(
         gap: int = 0,
@@ -529,6 +632,8 @@ class Overlay(Base):
             layout.setContentsMargins(margin, margin, margin, margin)
         if align is not None:
             layout.setAlignment(align)
+        # Avoid resize issue if layout item hide before widget show
+        layout.setSizeConstraint(QLayout.SetFixedSize)
         return layout
 
     def set_primary_layout(
@@ -562,16 +667,13 @@ class Overlay(Base):
             option: layout option name in Widget JSON.
             default: default layout orientation, 0 = vertical, 1 = horizontal.
         """
-        layout = self.layout()
-        assert isinstance(layout, QGridLayout)
+        layout: QGridLayout = self.layout()
         if self.wcfg.get(option, 0) == default:
-            order = column, row  # Vertical layout
-        else:
-            order = row, column  # Horizontal layout
+            column, row = row, column  # Vertical layout
         if isinstance(target, QWidget):
-            layout.addWidget(target, *order)
+            layout.addWidget(target, row, column)
         else:
-            layout.addLayout(target, *order)
+            layout.addLayout(target, row, column)
 
 
 def validate_option(config: dict) -> dict:
@@ -588,14 +690,14 @@ def validate_option(config: dict) -> dict:
 
 def disable_widget(widget_name: str):
     """Disable widget"""
-    from ..module_control import wctrl
+    from .. import wctrl
     wctrl.toggle(widget_name)
     app_signal.refresh.emit(True)
 
 
 def reload_widget(widget_name: str):
     """Reload widget"""
-    from ..module_control import wctrl
+    from .. import wctrl
     wctrl.reload(widget_name)
     app_signal.refresh.emit(True)
 
@@ -604,8 +706,7 @@ def config_widget(widget_name: str):
     """Open widget config dialog"""
     from PySide2.QtWidgets import QApplication, QMainWindow
 
-    from ..module_control import wctrl
-    from ..setting import cfg
+    from .. import cfg, wctrl
     from ..ui.config import UserConfig
 
     # Find main window instance

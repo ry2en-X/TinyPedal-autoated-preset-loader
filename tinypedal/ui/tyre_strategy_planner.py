@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import os
 
-from PySide2.QtCore import QPoint, QStandardPaths, Qt, Signal, Slot
+from PySide2.QtCore import QPoint, QStandardPaths, Qt, Slot
 from PySide2.QtGui import QBrush, QFont, QKeySequence, QPainter, QPen
 from PySide2.QtWidgets import (
     QAbstractItemView,
@@ -50,9 +50,9 @@ from PySide2.QtWidgets import (
     QWidget,
 )
 
-from ..const_file import ConfigType, FileFilter
+from .. import cfg, state
+from ..constant import CONFIG, FILE
 from ..formatter import format_option_name
-from ..setting import cfg
 from ..userfile.tyre_strategy import (
     DEFAULT_TYRE_SET,
     DEFAULT_TYRE_SETTING,
@@ -90,7 +90,7 @@ def save_tyre_strategy_file_path(filepath: str):
     """Save file path"""
     if filepath != cfg.user.config["tyre_strategy_planner"]["last_file_path"]:
         cfg.user.config["tyre_strategy_planner"]["last_file_path"] = filepath
-        cfg.save(config_type=ConfigType.CONFIG)
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
 
 
 class TyreNameListItem(QListWidgetItem):
@@ -116,7 +116,7 @@ class TyreNameListItem(QListWidgetItem):
 class TyrePlanTable(QTableWidget):
     """Tyre plan table"""
 
-    refresh = Signal(bool)
+    refresh = state.qt_signal(bool)
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -221,7 +221,7 @@ class TyrePlanTable(QTableWidget):
 
     def delete_row(self):
         """Delete selected row"""
-        selected_rows = set(data.row() for data in self.selectedIndexes())
+        selected_rows = {data.row() for data in self.selectedIndexes()}
         for row_index in sorted(selected_rows, reverse=True):
             self.removeRow(row_index)
         # Signal update
@@ -916,11 +916,11 @@ class TyreStrategyPlanner(BaseEditor):
         """Load tyre strategy from file"""
         if not self.confirm_discard():
             return
-        filename_full, file_filter = QFileDialog.getOpenFileName(
+        filename_full = QFileDialog.getOpenFileName(
             self,
             dir=set_tyre_strategy_file_path(),
-            filter=FileFilter.TYRESTRATEGY,
-        )
+            filter=FILE.FILTER_TYRESTRATEGY,
+        )[0]
         if not filename_full:
             return
         filepath = os.path.dirname(filename_full) + "/"
@@ -946,11 +946,11 @@ class TyreStrategyPlanner(BaseEditor):
         if not filename:
             QMessageBox.warning(self, "Error", "Invalid file name.")
             return
-        filename_full, file_filter = QFileDialog.getSaveFileName(
+        filename_full = QFileDialog.getSaveFileName(
             self,
             dir=set_tyre_strategy_file_path(filename),
-            filter=FileFilter.TYRESTRATEGY,
-        )
+            filter=FILE.FILTER_TYRESTRATEGY,
+        )[0]
         if not filename_full:  # save canceled
             return
         # Prepare data
@@ -980,11 +980,11 @@ class TyreStrategyPlanner(BaseEditor):
         if not filename:
             QMessageBox.warning(self, "Error", "Invalid file name.")
             return
-        filename_full, file_filter = QFileDialog.getSaveFileName(
+        filename_full = QFileDialog.getSaveFileName(
             self,
             dir=set_tyre_strategy_file_path(filename),
-            filter=FileFilter.CSV,
-        )
+            filter=FILE.FILTER_CSV,
+        )[0]
         if not filename_full:  # save canceled
             return
         # Tyre rule
@@ -1166,9 +1166,8 @@ class TyreStrategyPlanner(BaseEditor):
                 highlight = (not is_highlight_new or count_stints < 1)
                 item.setForeground(Qt.NoBrush if highlight else QBrush(Qt.darkGray))
                 tyre_item.set_remaining(starting_tread - wear_per_stint * count_stints, wear_per_stint)
-            else:
-                # Calculate tyre change time
-                table.set_change_time(row_index, column_count, tyre_change_time[count_changed])
+            # Calculate tyre change time
+            table.set_change_time(row_index, column_count, tyre_change_time[count_changed])
 
         self.tyre_set.update_uses(tyre_name_list)
         self.update_tyre_status()

@@ -25,7 +25,7 @@ from __future__ import annotations
 import csv
 import logging
 
-from ..const_file import FileExt
+from ..constant import FILE
 from ..validator import invalid_save_name
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def load_sector_best_file(
     filename: str,
     session_id: tuple[int, int, int],
     defaults: tuple[float, float, float],
-    extension: str = FileExt.SECTOR,
+    extension: str = FILE.EXT_SECTOR,
 ) -> tuple[list, list, list, list]:
     """Load sector best file (*.sector)"""
     try:
@@ -67,11 +67,11 @@ def save_sector_best_file(
     filepath: str,
     filename: str,
     session_id: tuple[int, int, int],
-    session_best_tb: list[float, float, float],
-    session_best_pb: list[float, float, float],
-    alltime_best_tb: list[float, float, float],
-    alltime_best_pb: list[float, float, float],
-    extension: str = FileExt.SECTOR,
+    session_best_tb: list[float],
+    session_best_pb: list[float],
+    alltime_best_tb: list[float],
+    alltime_best_pb: list[float],
+    extension: str = FILE.EXT_SECTOR,
 ) -> None:
     """Save sector best file (*.sector)
 

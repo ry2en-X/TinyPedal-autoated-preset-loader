@@ -33,17 +33,11 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..api_control import api
-from ..const_file import ConfigType
-from ..setting import cfg, copy_setting
-from ..userfile.heatmap import HEATMAP_DEFAULT_TYRE, set_predefined_compound_symbol
-from ._common import (
-    QVAL_COLOR,
-    BaseEditor,
-    CompactButton,
-    TableBatchReplace,
-    UIScaler,
-)
+from .. import api, cfg
+from ..constant import CONFIG, HEATMAP
+from ..userfile.heatmap import set_predefined_compound_symbol
+from ..userfile.json_setting import copy_setting
+from ._common import QVAL_COLOR, BaseEditor, CompactButton, TableBatchReplace, UIScaler
 from ._option import ColorEdit
 
 HEADER_COMPOUNDS = "Compound name", "Symbol", "Color", "Heatmap name"
@@ -133,8 +127,7 @@ class TyreCompoundEditor(BaseEditor):
     def refresh_table(self):
         """Refresh compounds list"""
         self.table_compounds.setRowCount(0)
-        row_index = 0
-        for compound_name, compound_data in self.compounds_temp.items():
+        for row_index, (compound_name, compound_data) in enumerate(self.compounds_temp.items()):
             self.add_compound_entry(
                 row_index,
                 compound_name,
@@ -142,7 +135,6 @@ class TyreCompoundEditor(BaseEditor):
                 compound_data["color"],
                 compound_data["heatmap"],
             )
-            row_index += 1
 
     def __add_option_color(self, key):
         """Color string"""
@@ -155,8 +147,11 @@ class TyreCompoundEditor(BaseEditor):
 
     def __add_option_combolist(self, key):
         """Combo droplist string"""
+        available_heatmap = cfg.user.heatmap.keys()
         combo_edit = QComboBox()
-        combo_edit.addItems(cfg.user.heatmap.keys())
+        combo_edit.addItems(available_heatmap)
+        if key not in available_heatmap:
+            key = HEATMAP.TYRE_DEFAULT
         combo_edit.setCurrentText(key)
         combo_edit.currentTextChanged.connect(self.set_modified)
         return combo_edit
@@ -175,7 +170,7 @@ class TyreCompoundEditor(BaseEditor):
         for index in range(veh_total):
             compounds = set(api.read.tyre.compound_class(index))
             for compound in compounds:
-                if not self.is_value_in_table(compound, self.table_compounds):
+                if compound and not self.is_value_in_table(compound, self.table_compounds):
                     self.add_compound_entry(
                         row_index,
                         compound,
@@ -191,7 +186,7 @@ class TyreCompoundEditor(BaseEditor):
 
     def add_compound_entry(
         self, row_index: int, compound_name: str, symbol_name: str = "?", color: str = "#AAAAAA",
-        heatmap_name: str = HEATMAP_DEFAULT_TYRE):
+        heatmap_name: str = HEATMAP.TYRE_DEFAULT):
         """Add new compound entry to table"""
         self.table_compounds.insertRow(row_index)
         self.table_compounds.setItem(row_index, 0, QTableWidgetItem(compound_name))
@@ -207,7 +202,7 @@ class TyreCompoundEditor(BaseEditor):
 
     def delete_compound(self):
         """Delete compound entry"""
-        selected_rows = set(data.row() for data in self.table_compounds.selectedIndexes())
+        selected_rows = {data.row() for data in self.table_compounds.selectedIndexes()}
         if not selected_rows:
             QMessageBox.warning(self, "Error", "No data selected.")
             return
@@ -268,7 +263,7 @@ class TyreCompoundEditor(BaseEditor):
         """Save setting"""
         self.update_compounds_temp()
         cfg.user.compounds = copy_setting(self.compounds_temp)
-        cfg.save(0, config_type=ConfigType.COMPOUNDS)
+        cfg.save(0, config_type=CONFIG.TYPE_COMPOUNDS)
         while cfg.is_saving:  # wait saving finish
             time.sleep(0.01)
         self.reloading()

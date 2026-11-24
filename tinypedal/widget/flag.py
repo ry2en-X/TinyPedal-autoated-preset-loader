@@ -20,11 +20,9 @@
 Flag Widget
 """
 
+from .. import api, minfo, units
 from .. import calculation as calc
-from .. import units
-from ..api_control import api
-from ..const_common import MAX_SECONDS
-from ..module_info import minfo
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -48,7 +46,7 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
-        bar_width = font_m.width * 7 + bar_padx
+        bar_width = font_m.width * 7
 
         # Config units
         self.unit_fuel = units.set_unit_fuel(self.cfg.units["fuel_unit"])
@@ -74,6 +72,7 @@ class Realtime(Overlay):
             )
             self.bar_pit_timer = self.set_rawtext(
                 text="PITST0P",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -89,6 +88,7 @@ class Realtime(Overlay):
         if self.wcfg["show_low_fuel"]:
             self.bar_lowfuel = self.set_rawtext(
                 text="LOWFUEL",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -105,6 +105,7 @@ class Realtime(Overlay):
             self.decimals_speed = max(self.wcfg["decimal_places_speed"], 0)
             self.bar_limiter = self.set_rawtext(
                 text=self.wcfg["speed_limiter_text"],
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -120,6 +121,7 @@ class Realtime(Overlay):
         if self.wcfg["show_yellow_flag"]:
             self.bar_yellowflag = self.set_rawtext(
                 text="YELLOW",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -135,6 +137,7 @@ class Realtime(Overlay):
         if self.wcfg["show_blue_flag"]:
             self.bar_blueflag = self.set_rawtext(
                 text="BLUE",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -154,6 +157,7 @@ class Realtime(Overlay):
             )
             self.bar_startlights = self.set_rawtext(
                 text="SLIGHTS",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -169,6 +173,7 @@ class Realtime(Overlay):
         if self.wcfg["show_traffic"]:
             self.bar_traffic = self.set_rawtext(
                 text="TRAFFIC",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -184,6 +189,7 @@ class Realtime(Overlay):
         if self.wcfg["show_pit_request"]:
             self.bar_pit_request = self.set_rawtext(
                 text="PIT REQ",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -209,6 +215,7 @@ class Realtime(Overlay):
             )
             self.bar_finish_state = self.set_rawtext(
                 text=self.wcfg["finish_text"],
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -224,6 +231,7 @@ class Realtime(Overlay):
         if self.wcfg["show_scheduled_repairs"]:
             self.bar_repairs = self.set_rawtext(
                 text="REPAIRS",
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -233,6 +241,22 @@ class Realtime(Overlay):
             self.set_primary_orient(
                 target=self.bar_repairs,
                 column=self.wcfg["display_order_scheduled_repairs"],
+            )
+
+        # Speeding in pit
+        if self.wcfg["show_speeding_in_pit"]:
+            self.bar_speeding = self.set_rawtext(
+                text="SPEEDIN",
+                padding=bar_padx,
+                width=bar_width,
+                fixed_height=font_m.height,
+                offset_y=font_m.voffset,
+                fg_color=self.wcfg["font_color_speeding_in_pit"],
+                bg_color=self.wcfg["background_color_speeding_in_pit"],
+            )
+            self.set_primary_orient(
+                target=self.bar_speeding,
+                column=self.wcfg["display_order_speeding_in_pit"],
             )
 
         # Last data
@@ -245,26 +269,31 @@ class Realtime(Overlay):
             self.wcfg["traffic_low_speed_threshold"],
             self.wcfg["show_traffic_while_off_track"],
         )
+        self.speeding_timer = SpeedingTimer(
+            self.wcfg["pit_lane_speed_limit"],
+            self.wcfg["speeding_highlight_duration"],
+        )
 
     def post_update(self):
         self.pit_timer.reset()
         self.blue_timer.reset()
         self.traffic_timer.reset()
         self.green_timer.reset()
+        self.speeding_timer.reset()
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
         # Read state data
-        lap_etime = api.read.timing.elapsed()
+        elapsed_time = api.read.timing.elapsed()
         in_pits = api.read.vehicle.in_pits()
         in_race = api.read.session.in_race()
 
         # Pit timer
         if self.wcfg["show_pit_timer"]:
             if in_pits and api.read.vehicle.in_garage():
-                pitting_state = MAX_SECONDS
+                pitting_state = DATA.MAX_SECONDS
             else:
-                pitting_state = self.pit_timer.update(in_pits, lap_etime)
+                pitting_state = self.pit_timer.update(in_pits, elapsed_time)
             self.update_pit_timer(self.bar_pit_timer, pitting_state)
 
         # Low fuel update
@@ -282,7 +311,7 @@ class Realtime(Overlay):
 
         # Blue flag
         if self.wcfg["show_blue_flag"]:
-            blue_state = self.blue_timer.update(in_race, lap_etime)
+            blue_state = self.blue_timer.update(in_race, elapsed_time)
             self.update_blueflag(self.bar_blueflag, blue_state)
 
         # Yellow flag
@@ -292,12 +321,12 @@ class Realtime(Overlay):
 
         # Start lights
         if self.wcfg["show_start_lights"]:
-            green_state = self.green_timer.update(lap_etime)
+            green_state = self.green_timer.update(elapsed_time)
             self.update_startlights(self.bar_startlights, green_state)
 
         # Incoming traffic
         if self.wcfg["show_traffic"]:
-            traffic = self.traffic_timer.update(in_pits, lap_etime)
+            traffic = self.traffic_timer.update(in_pits, elapsed_time)
             self.update_traffic(self.bar_traffic, traffic)
 
         # Pit request
@@ -315,12 +344,17 @@ class Realtime(Overlay):
             repair_time = api.read.vehicle.repair_time()
             self.update_repair_time(self.bar_repairs, repair_time)
 
+        # Speeding in pit
+        if self.wcfg["show_speeding_in_pit"]:
+            speeding = self.speeding_timer.update(in_pits, elapsed_time)
+            self.update_speeding(self.bar_speeding, speeding)
+
     # GUI update methods
     def update_pit_timer(self, target, data):
         """Pit timer"""
         if target.last != data:
             target.last = data
-            if data != MAX_SECONDS:
+            if data != DATA.MAX_SECONDS:
                 if data < 0:  # finished pits
                     color_index = 1
                     timer = f"{-data:.2f}"
@@ -392,7 +426,7 @@ class Realtime(Overlay):
         """Blue flag"""
         if target.last != data:
             target.last = data
-            if data != MAX_SECONDS:
+            if data != DATA.MAX_SECONDS:
                 class_name = minfo.vehicles.nearestBlueClass
                 class_style = self.cfg.user.classes.get(class_name)
                 if class_style is not None:
@@ -413,7 +447,7 @@ class Realtime(Overlay):
         """Yellow flag"""
         if target.last != data:
             target.last = data
-            if data != MAX_SECONDS:
+            if data != DATA.MAX_SECONDS:
                 distance = f"{self.unit_dist(data):+.0f}{self.symbol_dist}"
                 prefix = self.wcfg["yellow_flag_text"]
                 if prefix:
@@ -460,7 +494,7 @@ class Realtime(Overlay):
         """Incoming traffic"""
         if target.last != data:
             target.last = data
-            if data != MAX_SECONDS:
+            if data != DATA.MAX_SECONDS:
                 time_gap = f"{data:.1f}s"
                 prefix = self.wcfg["traffic_text"]
                 if prefix:
@@ -534,6 +568,24 @@ class Realtime(Overlay):
                 target.state = hidden
                 target.setHidden(hidden)
 
+    def update_speeding(self, target, data):
+        """Speeding in pit"""
+        if target.last != data:
+            target.last = data
+            timer = data[0]
+            if timer > 0:
+                speeding_time = f"{timer:.1f}"
+                max_speeding = f"{self.unit_speed(data[1]):02.0f}"
+                target.text = f"{max_speeding}/{speeding_time:.3}s"
+                target.update()
+                hidden = False
+            else:
+                hidden = True
+
+            if target.state != hidden:
+                target.state = hidden
+                target.setHidden(hidden)
+
     # Additional methods
     def is_lowfuel(self, in_race):
         """Is low fuel"""
@@ -593,7 +645,7 @@ class Realtime(Overlay):
                 yellow_behind = minfo.vehicles.nearestYellowBehind
                 if yellow_behind >= -self.wcfg["yellow_flag_maximum_range_behind"]:
                     return yellow_behind
-        return MAX_SECONDS
+        return DATA.MAX_SECONDS
 
 
 class GreenFlagTimer:
@@ -666,7 +718,7 @@ class TrafficTimer:
         if traffic_time < self._max_time_gap:
             if in_pits or self._timer_start:
                 return traffic_time
-        return MAX_SECONDS
+        return DATA.MAX_SECONDS
 
     def reset(self):
         """Reset"""
@@ -694,7 +746,7 @@ class BlueFlagTimer:
                     self._timer_start = elapsed_time
                 return elapsed_time - self._timer_start
             self._timer_start = 0
-        return MAX_SECONDS
+        return DATA.MAX_SECONDS
 
     def reset(self):
         """Reset"""
@@ -724,7 +776,7 @@ class PitTimer:
         self._last_in_pits = in_pits
 
         if not self._timer_start:
-            return MAX_SECONDS
+            return DATA.MAX_SECONDS
 
         pit_timer = elapsed_time - self._timer_start
         if in_pits:
@@ -733,7 +785,7 @@ class PitTimer:
             pit_timer = -self._last_pit_time  # set negative for highlighting
         else:
             self._timer_start = 0  # stop timer
-            pit_timer = MAX_SECONDS
+            pit_timer = DATA.MAX_SECONDS
         return pit_timer
 
     def reset(self):
@@ -741,3 +793,54 @@ class PitTimer:
         self._timer_start = 0
         self._last_in_pits = 0
         self._last_pit_time = 0
+
+
+class SpeedingTimer:
+    """Speeding timer"""
+
+    __slots__ = (
+        "_timer_start",
+        "_elapsed_time",
+        "_speeding_time",
+        "_max_speeding",
+        "_pit_speed",
+        "_highlight_duration",
+    )
+
+    def __init__(self, pit_speed: float, highlight_duration: float):
+        self._timer_start = 0.0
+        self._elapsed_time = 0.0
+        self._speeding_time = 0.0
+        self._max_speeding = 0.0
+        self._pit_speed = pit_speed / 3.6
+        self._highlight_duration = highlight_duration
+
+    def update(self, in_pits: bool, elapsed_time: float):
+        """Check pit speeding"""
+        delta_time = elapsed_time - self._elapsed_time
+        self._elapsed_time = elapsed_time
+
+        if in_pits:
+            speed = api.read.vehicle.speed()
+            if speed > self._pit_speed:
+                self._speeding_time += delta_time
+            exceeded_speed = speed - self._pit_speed
+            if self._max_speeding < exceeded_speed:
+                self._max_speeding = exceeded_speed
+            self._timer_start = elapsed_time
+        elif self._speeding_time:
+            if (
+                self._timer_start > elapsed_time
+                or elapsed_time - self._timer_start > self._highlight_duration
+            ):
+                self._speeding_time = 0.0
+                self._max_speeding = 0.0
+
+        return self._speeding_time, self._max_speeding
+
+    def reset(self):
+        """Reset"""
+        self._timer_start = 0.0
+        self._elapsed_time = 0.0
+        self._speeding_time = 0.0
+        self._max_speeding = 0.0

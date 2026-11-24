@@ -25,15 +25,9 @@ import os
 from PySide2.QtGui import QDesktopServices
 from PySide2.QtWidgets import QMenu, QMessageBox
 
-from .. import app_signal, loader
-from ..api_control import api
-from ..const_app import PLATFORM, URL_FAQ, URL_USER_GUIDE
-from ..const_file import ConfigType
+from .. import api, app_signal, cfg, mctrl, octrl, updater
+from ..constant import API, APP, CONFIG, PLATFORM
 from ..formatter import format_option_name
-from ..module_control import mctrl
-from ..overlay_control import octrl
-from ..setting import cfg
-from ..update import update_checker
 from .about import About
 from .brake_editor import BrakeEditor
 from .config import FontConfig, UserConfig
@@ -53,14 +47,12 @@ from .vehicle_class_editor import VehicleClassEditor
 # Define menu command
 def menu_reload_preset():
     """Command - full reload"""
-    loader.reload(reload_preset=True)
-    app_signal.refresh.emit(True)
+    app_signal.reload.emit(True)
 
 
 def menu_reload_only():
     """Command - fast reload"""
-    loader.reload(reload_preset=False)
-    app_signal.refresh.emit(True)
+    app_signal.reload.emit(False)
 
 
 def menu_refresh_only():
@@ -79,8 +71,9 @@ class OverlayMenu(QMenu):
 
     def __init__(self, title, parent, is_tray: bool = False):
         super().__init__(title, parent)
+        self._parent = parent
+
         if is_tray:
-            self._parent = parent
             loaded_preset_font = self.font()
             loaded_preset_font.setBold(True)
             self.loaded_preset = self.addAction("")
@@ -113,6 +106,11 @@ class OverlayMenu(QMenu):
         self.overlay_vr.setCheckable(True)
         self.overlay_vr.triggered.connect(self.vr_compatibility)
 
+        # Combined mode
+        self.overlay_mode = self.addAction("Combined Mode")
+        self.overlay_mode.setCheckable(True)
+        self.overlay_mode.triggered.connect(self.combined_mode)
+
         # Reload preset (check for opened config dialog)
         reload_preset = self.addAction("Reload")
         reload_preset.triggered.connect(parent.reload_preset)
@@ -136,6 +134,7 @@ class OverlayMenu(QMenu):
         self.overlay_hide.setChecked(cfg.overlay["auto_hide"])
         self.overlay_grid.setChecked(cfg.overlay["enable_grid_move"])
         self.overlay_vr.setChecked(cfg.overlay["vr_compatibility"])
+        self.overlay_mode.setChecked(cfg.overlay["combined_mode"])
 
     def refresh_preset_name(self):
         """Refresh preset name"""
@@ -168,6 +167,27 @@ class OverlayMenu(QMenu):
     def vr_compatibility():
         """Check VR compatibility state"""
         octrl.toggle.vr()
+
+    def combined_mode(self):
+        """Check combined mode state"""
+        combined_mode = cfg.overlay["combined_mode"]
+        if combined_mode:
+            state = "Disable"
+            desc = "Each <b>Widget</b> will be displayed in separate window."
+        else:
+            state = "Enable"
+            desc = "All <b>Widgets</b> will be combined and drawn in one single maximized window."
+        msg_text = f"{state} <b>Overlay Combined Mode</b>?<br><br>{desc}"
+        toggle_msg = QMessageBox.question(
+            self._parent, "Overlay Combined Mode", msg_text,
+            buttons=QMessageBox.Yes | QMessageBox.No,
+            defaultButton=QMessageBox.No,
+        )
+        if toggle_msg != QMessageBox.Yes:
+            return
+        cfg.overlay["combined_mode"] = not combined_mode
+        cfg.save()
+        app_signal.reload.emit(True)
 
 
 class ResetDataMenu(QMenu):
@@ -334,7 +354,7 @@ class ConfigMenu(QMenu):
         else:  # Linux
             try:
                 import subprocess
-                subprocess.run(["xdg-open", filepath])
+                subprocess.run(["xdg-open", filepath], check=False)
             except (FileNotFoundError, subprocess.SubprocessError):
                 error = True
         if error:
@@ -350,7 +370,7 @@ class ConfigMenu(QMenu):
             parent=self._parent,
             key_name="application",
             preset_name=cfg.filename.config,
-            config_type=ConfigType.CONFIG,
+            config_type=CONFIG.TYPE_CONFIG,
             user_setting=cfg.user.config,
             default_setting=cfg.default.config,
             reload_func=menu_reload_preset,
@@ -363,7 +383,7 @@ class ConfigMenu(QMenu):
             parent=self._parent,
             key_name="compatibility",
             preset_name=cfg.filename.config,
-            config_type=ConfigType.CONFIG,
+            config_type=CONFIG.TYPE_CONFIG,
             user_setting=cfg.user.config,
             default_setting=cfg.default.config,
             reload_func=menu_reload_preset,
@@ -376,11 +396,12 @@ class ConfigMenu(QMenu):
             parent=self._parent,
             key_name="user_path",
             preset_name=cfg.filename.config,
-            config_type=ConfigType.CONFIG,
+            config_type=CONFIG.TYPE_CONFIG,
             user_setting=cfg.user.config,
             default_setting=cfg.default.config,
             reload_func=menu_reload_preset,
             option_width=22,
+            fixed_column=False,
         )
         _dialog.open()
 
@@ -390,7 +411,7 @@ class ConfigMenu(QMenu):
             parent=self._parent,
             key_name="notification",
             preset_name=cfg.filename.config,
-            config_type=ConfigType.CONFIG,
+            config_type=CONFIG.TYPE_CONFIG,
             user_setting=cfg.user.config,
             default_setting=cfg.default.config,
             reload_func=menu_refresh_only,
@@ -403,7 +424,7 @@ class ConfigMenu(QMenu):
             parent=self._parent,
             key_name="units",
             preset_name=cfg.filename.setting,
-            config_type=ConfigType.SETTING,
+            config_type=CONFIG.TYPE_SETTING,
             user_setting=cfg.user.setting,
             default_setting=cfg.default.setting,
             reload_func=menu_reload_only,
@@ -457,7 +478,7 @@ class APIMenu(QMenu):
 
     def refresh_menu(self):
         """Refresh menu"""
-        selected_api_name = cfg.api_name
+        selected_api_name = cfg.selected_api
         for action in self.actions_api.actions():
             if selected_api_name == action.text():
                 action.setChecked(True)
@@ -470,21 +491,21 @@ class APIMenu(QMenu):
         """Toggle API selection mode"""
         enabled = cfg.telemetry["enable_api_selection_from_preset"]
         cfg.telemetry["enable_api_selection_from_preset"] = not enabled
-        cfg.save(config_type=ConfigType.CONFIG)
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
         menu_reload_only()
 
     def toggle_carsetup_backup(self):
         """Toggle auto car setup backup"""
         enabled = cfg.telemetry["enable_auto_backup_car_setup"]
         cfg.telemetry["enable_auto_backup_car_setup"] = not enabled
-        cfg.save(config_type=ConfigType.CONFIG)
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
         menu_refresh_only()
 
     def toggle_legacy_api(self):
         """Toggle legacy API selection"""
         enabled = cfg.telemetry["enable_legacy_api_selection"]
         cfg.telemetry["enable_legacy_api_selection"] = not enabled
-        cfg.save(config_type=ConfigType.CONFIG)
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
         menu_restart_api()
         self.reset_menu()
 
@@ -492,9 +513,9 @@ class APIMenu(QMenu):
         """Config API"""
         _dialog = UserConfig(
             parent=self._parent,
-            key_name=cfg.api_key,
+            key_name=API.MAP_CONFIG[api.name],
             preset_name=cfg.filename.setting,
-            config_type=ConfigType.SETTING,
+            config_type=CONFIG.TYPE_SETTING,
             user_setting=cfg.user.setting,
             default_setting=cfg.default.setting,
             reload_func=menu_restart_api,
@@ -510,8 +531,7 @@ class APIMenu(QMenu):
 
         actions_api = QActionGroup(self)
 
-        for _api in api.available:
-            api_name = _api.NAME
+        for api_name in api.available:
             option = self.addAction(api_name)
             option.setCheckable(True)
             option.triggered.connect(lambda checked=True, name=api_name: self.__toggle_option(checked, name))
@@ -520,15 +540,14 @@ class APIMenu(QMenu):
 
     def __toggle_option(self, checked: bool, api_name: str):
         """Toggle option"""
-        if cfg.api_name == api_name:
-            return
-        cfg.api_name = api_name
-        if cfg.telemetry["enable_api_selection_from_preset"]:
-            save_type = ConfigType.SETTING
-        else:
-            save_type = ConfigType.CONFIG
-        cfg.save(config_type=save_type)
-        menu_reload_only()
+        if cfg.selected_api != api_name:
+            cfg.selected_api = api_name
+            if cfg.telemetry["enable_api_selection_from_preset"]:
+                save_type = CONFIG.TYPE_SETTING
+            else:
+                save_type = CONFIG.TYPE_CONFIG
+            cfg.save(config_type=save_type)
+            menu_reload_only()
 
 
 class ToolsMenu(QMenu):
@@ -651,7 +670,7 @@ class WindowMenu(QMenu):
         self.addSeparator()
 
         restart_app = self.addAction("Restart TinyPedal")
-        restart_app.triggered.connect(loader.restart)
+        restart_app.triggered.connect(parent.restart_app)
 
         self.aboutToShow.connect(self.refresh_menu)
 
@@ -682,7 +701,7 @@ class WindowMenu(QMenu):
     def __toggle_option(option_name: str):
         """Toggle option"""
         cfg.application[option_name] = not cfg.application[option_name]
-        cfg.save(config_type=ConfigType.CONFIG)
+        cfg.save(config_type=CONFIG.TYPE_CONFIG)
 
 
 class HelpMenu(QMenu):
@@ -721,12 +740,12 @@ class HelpMenu(QMenu):
 
     def show_update(self):
         """Show update"""
-        update_checker.check(True)
+        updater.check(True)
 
     def open_user_guide(self):
         """Open user guide link"""
-        QDesktopServices.openUrl(URL_USER_GUIDE)
+        QDesktopServices.openUrl(APP.URL_USER_GUIDE)
 
     def open_faq(self):
         """Open FAQ link"""
-        QDesktopServices.openUrl(URL_FAQ)
+        QDesktopServices.openUrl(APP.URL_FAQ)

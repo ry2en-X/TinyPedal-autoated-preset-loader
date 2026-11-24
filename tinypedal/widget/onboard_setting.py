@@ -20,8 +20,8 @@
 Onboard setting Widget
 """
 
-from ..api_control import api
-from ..const_common import TEXT_PLACEHOLDER
+from .. import api
+from ..constant import DATA
 from ._base import Overlay
 
 
@@ -53,7 +53,7 @@ class Realtime(Overlay):
 
         # Config variable
         bar_padx = self.set_padding(self.wcfg["font_size"], self.wcfg["bar_padding"])
-        bar_width = font_m.width * 1 + bar_padx
+        bar_width = font_m.width * 1
         row_caption = 2 * self.wcfg["swap_upper_caption"]
 
         # ABS
@@ -64,7 +64,8 @@ class Realtime(Overlay):
                 self.wcfg["abs_activation_color"],
             )
             self.bars_abs = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -96,7 +97,8 @@ class Realtime(Overlay):
                 self.wcfg["tc_activation_color"],
             )
             self.bars_tc = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -124,7 +126,8 @@ class Realtime(Overlay):
         if self.wcfg["show_tc_cut"]:
             layout_tc_cut = self.set_grid_layout()
             self.bars_tc_cut = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -152,7 +155,8 @@ class Realtime(Overlay):
         if self.wcfg["show_tc_slip"]:
             layout_tc_slip = self.set_grid_layout()
             self.bars_tc_slip = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -180,7 +184,8 @@ class Realtime(Overlay):
         if self.wcfg["show_front_arb"]:
             layout_farb = self.set_grid_layout()
             self.bars_farb = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -208,7 +213,8 @@ class Realtime(Overlay):
         if self.wcfg["show_rear_arb"]:
             layout_rarb = self.set_grid_layout()
             self.bars_rarb = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -236,7 +242,8 @@ class Realtime(Overlay):
         if self.wcfg["show_brake_migration"]:
             layout_bmig = self.set_grid_layout()
             self.bars_bmig = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -264,7 +271,8 @@ class Realtime(Overlay):
         if self.wcfg["show_motor_map"]:
             layout_mmap = self.set_grid_layout()
             self.bars_mmap = self.set_rawtext(
-                text=TEXT_PLACEHOLDER,
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
                 width=bar_width,
                 fixed_height=font_m.height,
                 offset_y=font_m.voffset,
@@ -287,6 +295,35 @@ class Realtime(Overlay):
                     bg_color=self.wcfg["background_color_caption"],
                 )
                 layout_mmap.addWidget(cap_temp, row_caption, 0)
+
+        # Wiper state
+        if self.wcfg["show_wiper_state"]:
+            layout_wiper = self.set_grid_layout()
+            self.bars_wiper = self.set_rawtext(
+                text=DATA.TEXT_PLACEHOLDER,
+                padding=bar_padx,
+                width=bar_width,
+                fixed_height=font_m.height,
+                offset_y=font_m.voffset,
+                fg_color=self.wcfg["font_color_wiper_state"],
+                bg_color=self.wcfg["background_color_wiper_state"],
+            )
+            layout_wiper.addWidget(self.bars_wiper, 1, 0)
+            self.set_primary_orient(
+                target=layout_wiper,
+                column=self.wcfg["display_order_wiper_state"],
+            )
+
+            if self.wcfg["show_caption"]:
+                cap_temp = self.set_rawtext(
+                    font=font_cap,
+                    text=self.wcfg["caption_text_wiper_state"],
+                    fixed_height=font_cap_m.height,
+                    offset_y=font_cap_m.voffset,
+                    fg_color=self.wcfg["font_color_caption"],
+                    bg_color=self.wcfg["background_color_caption"],
+                )
+                layout_wiper.addWidget(cap_temp, row_caption, 0)
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
@@ -324,13 +361,17 @@ class Realtime(Overlay):
             rear_arb_level = api.read.switch.rear_arb_level()
             self.update_level(self.bars_rarb, rear_arb_level)
 
+        if self.wcfg["show_wiper_state"]:
+            wiper_state = api.read.switch.wipers()
+            self.update_level(self.bars_wiper, wiper_state)
+
     # GUI update methods
     def update_tc(self, target, *data):
         """TC state"""
         if target.last != data:
             target.last = data
             if data[0] < 0:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             else:
                 text = f"{data[0]}"
             target.text = text
@@ -342,7 +383,7 @@ class Realtime(Overlay):
         if target.last != data:
             target.last = data
             if data[0] < 0:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             else:
                 text = f"{data[0]}"
             target.text = text
@@ -354,7 +395,7 @@ class Realtime(Overlay):
         if target.last != data:
             target.last = data
             if data < 0:
-                text = TEXT_PLACEHOLDER
+                text = DATA.TEXT_PLACEHOLDER
             else:
                 text = f"{data}"
             target.text = text

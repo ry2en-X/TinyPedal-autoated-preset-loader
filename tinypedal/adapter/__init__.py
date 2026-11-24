@@ -19,23 +19,17 @@
 """
 API data adapter
 """
-from typing import NamedTuple
 
-from . import _reader
+from ._connector import APIDataReader, Connector
+from .acc_connector import SimACC
+from .lmu_connector import SimLMU
+from .rf2_connector import SimLMULegacy, SimRF2
 
-
-class APIDataReader(NamedTuple):
-    """API data reader"""
-
-    state: _reader.State
-    brake: _reader.Brake
-    emotor: _reader.ElectricMotor
-    engine: _reader.Engine
-    inputs: _reader.Inputs
-    lap: _reader.Lap
-    session: _reader.Session
-    switch: _reader.Switch
-    timing: _reader.Timing
-    tyre: _reader.Tyre
-    vehicle: _reader.Vehicle
-    wheel: _reader.Wheel
+__all__ = (
+    "APIDataReader",
+    "Connector",
+    "SimACC",
+    "SimLMU",
+    "SimLMULegacy",
+    "SimRF2",
+)

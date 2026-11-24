@@ -44,13 +44,17 @@ from PySide2.QtWidgets import (
     QVBoxLayout,
 )
 
-from .. import app_signal
+from .. import app_signal, cfg
 from .. import regex_pattern as rxp
-from ..const_file import ConfigType, FileExt
+from ..constant import CONFIG, FILE
 from ..formatter import format_option_name, strip_filename_extension
-from ..setting import cfg, load_setting_json_file, save_and_verify_json_file
-from ..template.setting_shortcuts import SHORTCUTS_PRESET
-from ..userfile.json_setting import verify_json_file
+from ..setting.default_shortcuts import SHORTCUTS_PRESET
+from ..setting.validator import PresetValidator
+from ..userfile.json_setting import (
+    load_setting_json_file,
+    save_and_verify_json_file,
+    verify_json_file,
+)
 from ..validator import is_allowed_filename
 from ._common import QVAL_FILENAME, BaseDialog, BaseEditor, CompactButton, UIScaler
 
@@ -95,7 +99,7 @@ class CreatePreset(BaseDialog):
 
     def create(self):
         """Create & save new preset"""
-        entered_filename = strip_filename_extension(self.preset_entry.text(), FileExt.JSON)
+        entered_filename = strip_filename_extension(self.preset_entry.text(), FILE.EXT_JSON)
         source_filename = self.source_filename
         filepath = cfg.path.settings
         # Check invalid file name
@@ -112,19 +116,19 @@ class CreatePreset(BaseDialog):
         if self.edit_mode == "duplicate":
             shutil.copy(
                 f"{filepath}{source_filename}",
-                f"{filepath}{entered_filename}{FileExt.JSON}"
+                f"{filepath}{entered_filename}{FILE.EXT_JSON}"
             )
         # Restore preset
         elif self.edit_mode == "restore":
             os.rename(
                 f"{filepath}{source_filename}",
-                f"{filepath}{entered_filename}{FileExt.JSON}"
+                f"{filepath}{entered_filename}{FILE.EXT_JSON}"
             )
         # Rename preset
         elif self.edit_mode == "rename":
             os.rename(
                 f"{filepath}{source_filename}",
-                f"{filepath}{entered_filename}{FileExt.JSON}"
+                f"{filepath}{entered_filename}{FILE.EXT_JSON}"
             )
             # Rename matching preset shortcut
             source_name = source_filename[:-5]
@@ -132,16 +136,16 @@ class CreatePreset(BaseDialog):
                 preset_name = cfg.user.shortcuts[option_name]["preset"]
                 if source_name == preset_name:
                     cfg.user.shortcuts[option_name]["preset"] = entered_filename
-                    cfg.save(config_type=ConfigType.SHORTCUTS)
+                    cfg.save(config_type=CONFIG.TYPE_SHORTCUTS)
             # Reload if renamed file was loaded
             if cfg.is_loaded(source_filename):
-                cfg.set_next_to_load(f"{entered_filename}{FileExt.JSON}")
+                cfg.set_next_to_load(f"{entered_filename}{FILE.EXT_JSON}")
                 app_signal.reload.emit(True)
                 self.accept()
                 return
         # Create new preset
         else:
-            cfg.create(f"{entered_filename}{FileExt.JSON}")
+            cfg.create(f"{entered_filename}{FILE.EXT_JSON}")
         # Close window
         app_signal.refresh.emit(True)
         self.accept()
@@ -195,7 +199,7 @@ class RestoreBackup(BaseEditor):
         style_color = QColor("#08F")
 
         for backup_name in backup_list:
-            basename = backup_name[:backup_name.find(FileExt.JSON)]
+            basename = backup_name[:backup_name.find(FILE.EXT_JSON)]
             if not basename:  # ignore empty file
                 continue
             item = QListWidgetItem()
@@ -255,11 +259,11 @@ class RestoreBackup(BaseEditor):
                 "This cannot be undone!"
             )
             if self.confirm_operation(title="Restore Style Preset", message=msg_text):
-                basename = selected_filename[:selected_filename.find(FileExt.JSON)]
+                basename = selected_filename[:selected_filename.find(FILE.EXT_JSON)]
                 filepath = cfg.path.settings
                 shutil.move(
                     f"{filepath}{selected_filename}",
-                    f"{filepath}{basename}{FileExt.JSON}"
+                    f"{filepath}{basename}{FILE.EXT_JSON}"
                 )
                 app_signal.reload.emit(True)
                 self.refresh()
@@ -407,6 +411,7 @@ class PresetTransfer(BaseEditor):
             filename=dest_preset_name,
             filepath=cfg.path.settings,
             dict_def=cfg.default.setting,
+            validator=PresetValidator.user_preset,
         )
         # Copy setting
         self.copy_setting(dest_dict, setting_selection, options_selection)

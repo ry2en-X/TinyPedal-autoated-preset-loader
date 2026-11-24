@@ -24,55 +24,42 @@ from __future__ import annotations
 
 import logging
 
-from ..const_common import WHEELS_NA
+from ..constant import DATA
+from ..decorator import slotclass
 from ..process.garage import export_lmu_car_setup
-from ..process.vehicle import absolute_refilling, export_wheels, steerlock_to_number
-from ..process.weather import FORECAST_DEFAULT, WeatherNode, forecast_rf2
+from ..process.vehicle import (
+    absolute_refilling,
+    export_brakes,
+    export_wheels,
+    steerlock_to_number,
+)
+from ..process.weather import FORECAST_RF2_DEFAULT, forecast_rf2
 from ..validator import valid_value_type
-from .restapi_connector import ResOutput, RestAPITask
+from ._restapi import ResOutput, RestAPITask
 
 logger = logging.getLogger(__name__)
 
 
+@slotclass
 class RestAPIData:
     """Rest API data"""
 
-    __slots__ = (
-        # LMU, RF2
-        "timeScale",
-        "privateQualifying",
-        "forecastPractice",
-        "forecastQualify",
-        "forecastRace",
-        "lastCarSetup",
-        # LMU only
-        "steeringWheelRange",
-        "aeroDamage",
-        "repairTime",
-        "pitStopTime",
-        "absoluteRefill",
-        "maxVirtualEnergy",
-        "brakeWear",
-        "suspensionDamage",
-    )
-
-    def __init__(self):
-        # LMU, RF2
-        self.timeScale: int = 1
-        self.privateQualifying: int = 0
-        self.forecastPractice: tuple[WeatherNode, ...] = FORECAST_DEFAULT
-        self.forecastQualify: tuple[WeatherNode, ...] = FORECAST_DEFAULT
-        self.forecastRace: tuple[WeatherNode, ...] = FORECAST_DEFAULT
-        self.lastCarSetup: tuple[str, ...] = ()
-        # LMU only
-        self.steeringWheelRange: float = 0.0
-        self.aeroDamage: float = -1.0
-        self.repairTime: float = 0.0
-        self.pitStopTime: float = 0.0
-        self.absoluteRefill: float = 0.0
-        self.maxVirtualEnergy: float = 0.0
-        self.brakeWear: tuple[float, float, float, float] = WHEELS_NA
-        self.suspensionDamage: tuple[float, float, float, float] = WHEELS_NA
+    # LMU, RF2
+    timeScale: int = 1
+    privateQualifying: int = 0
+    forecastPractice: tuple[tuple[float, int, float, float], ...] = FORECAST_RF2_DEFAULT
+    forecastQualify: tuple[tuple[float, int, float, float], ...] = FORECAST_RF2_DEFAULT
+    forecastRace: tuple[tuple[float, int, float, float], ...] = FORECAST_RF2_DEFAULT
+    lastCarSetup: tuple[str, ...] = ()
+    # LMU only
+    steeringWheelRange: float = 0.0
+    aeroDamage: float = -1.0
+    repairTime: float = 0.0
+    pitStopTime: float = 0.0
+    absoluteRefill: float = 0.0
+    maxVirtualEnergy: float = 0.0
+    brakeWear: tuple[float, ...] = DATA.WHEELS_NA
+    suspensionDamage: tuple[float, ...] = DATA.WHEELS_NA
 
     def __del__(self):
         logger.info("RestAPI: GC: RestAPIData")
@@ -82,14 +69,14 @@ def lmu_restapi_tasks() -> tuple[RestAPITask, ...]:
     """Define RestAPI task set - LMU"""
     # Define resources output set
     res_weatherforecast = (
-        ResOutput("forecastPractice", FORECAST_DEFAULT, forecast_rf2, ("PRACTICE",)),
-        ResOutput("forecastQualify", FORECAST_DEFAULT, forecast_rf2, ("QUALIFY",)),
-        ResOutput("forecastRace", FORECAST_DEFAULT, forecast_rf2, ("RACE",)),
+        ResOutput("forecastPractice", FORECAST_RF2_DEFAULT, forecast_rf2, ("PRACTICE",)),
+        ResOutput("forecastQualify", FORECAST_RF2_DEFAULT, forecast_rf2, ("QUALIFY",)),
+        ResOutput("forecastRace", FORECAST_RF2_DEFAULT, forecast_rf2, ("RACE",)),
     )
     res_currentstint = (
         ResOutput("aeroDamage", -1.0, valid_value_type, ("wearables", "body", "aero")),
-        ResOutput("brakeWear", WHEELS_NA, export_wheels, ("wearables", "brakes")),
-        ResOutput("suspensionDamage", WHEELS_NA, export_wheels, ("wearables", "suspension")),
+        ResOutput("brakeWear", DATA.WHEELS_NA, export_brakes, ("wearables", "brakes")),
+        ResOutput("suspensionDamage", DATA.WHEELS_NA, export_wheels, ("wearables", "suspension")),
         ResOutput("absoluteRefill", 0.0, absolute_refilling, ("pitMenu", "pitMenu")),
         ResOutput("maxVirtualEnergy", 0.0, valid_value_type, ("fuelInfo", "maxVirtualEnergy")),
     )

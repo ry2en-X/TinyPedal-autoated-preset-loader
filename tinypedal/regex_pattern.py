@@ -25,11 +25,11 @@ from types import MappingProxyType
 
 from PySide2.QtGui import QFont
 
-from .const_api import API_MAP_ALIAS
+from .constant import API
 
 # Compiled regex function
 rex_hex_color = re.compile(r"^#[0-9A-F]{3}$|^#[0-9A-F]{6}$|^#[0-9A-F]{8}$", flags=re.IGNORECASE)
-rex_invalid_char = re.compile(r'[\\/:*?"<>|]')
+rex_invalid_char = re.compile(r'[\\/:*?"<>|\0]')
 rex_special_char = re.compile(r'[\\/:*?"<>|!@#$%^&\'{}~`;]')
 rex_number_extract = re.compile(r"\d*\.?\d+")
 rex_lmu_brand_extract = re.compile(r"^([a-zA-Z-]{2,})(\s[A-Z][a-z]{2,}\s)?")
@@ -50,6 +50,7 @@ CFG_BOOL = (
     "^active_state$|"
     "^auto_hide$|"
     "^check_for_updates_on_startup$|"
+    "^combined_mode$|"
     "^fixed_position$|"
     "^global$|"
     "^minimize_to_tray$|"
@@ -91,6 +92,7 @@ CFG_USER_IMAGE = "_image_file"
 CFG_STRING = (
     # Exact match
     "^bind$|"
+    "^connection_password$|"
     "^preset$|"
     "^process_id$|"
     "^version$|"
@@ -110,7 +112,7 @@ CFG_INTEGER = (
     # Exact match
     "^access_mode$|"
     "^display_orientation$|"
-    "^electric_braking_allocation$|"
+    "^drive_wheel_allocation$|"
     "^grid_move_size$|"
     "^lap_time_history_count$|"
     "^leading_zero$|"
@@ -191,6 +193,7 @@ ABBR_PATTERN = "|".join(
         "led",
         "tc",
         "abs",
+        "acc",
         "arb",
         "api",
         "dpi",
@@ -199,10 +202,10 @@ ABBR_PATTERN = "|".join(
         "lmu",
         "rpm",
         "rf2",
+        "udp",
         "url",
     )
 )
-
 
 # Font weight
 FONT_WEIGHT_MAP = MappingProxyType({
@@ -219,7 +222,7 @@ FONT_WEIGHT_MAP = MappingProxyType({
 
 # Choice dictionary
 CHOICE_COMMON = MappingProxyType({
-    CFG_API_NAME: tuple(API_MAP_ALIAS),
+    CFG_API_NAME: API.MAP_ALIAS.keys(),
     CFG_CHARACTER_ENCODING: ("UTF-8", "ISO-8859-1"),
     CFG_DELTABEST_SOURCE: ("Best", "Session", "Stint", "Last"),
     CFG_FONT_WEIGHT: tuple(FONT_WEIGHT_MAP),
@@ -239,18 +242,5 @@ CHOICE_UNITS = MappingProxyType({
     "turbo_pressure_unit": ("bar", "psi", "kPa"),
     "tyre_pressure_unit": ("kPa", "psi", "bar"),
     "weight_unit": ("Kilogram", "Pound"),
+    "wind_speed_unit": ("KPH", "MPH", "m/s"),
 })
-
-# Misc
-COMMON_TYRE_COMPOUNDS = (
-    ("super", "Q"),  # super soft
-    ("inter", "I"),  # intermediate
-    ("soft", "S"),
-    ("med", "M"),  # medium
-    ("hard", "H"),
-    ("rain|wet", "W"),
-    ("slick|dry", "S"),
-    ("oval", "O"),
-    ("road|radial|tread", "R"),
-    ("bias", "B"),  # bias ply
-)

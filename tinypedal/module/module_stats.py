@@ -24,11 +24,11 @@ from __future__ import annotations
 
 from time import localtime, strftime
 
+from .. import api, minfo, realtime_state
 from .. import calculation as calc
-from .. import realtime_state
-from ..api_control import api
-from ..const_common import FLOAT_INF
-from ..module_info import StatsInfo, minfo
+from ..constant import DATA
+from ..decorator import generator_init
+from ..module_info import DriverStats, StatsInfo
 from ..userfile.brands import select_brand_name
 from ..userfile.car_setup import (
     rename_car_setup_file,
@@ -36,8 +36,7 @@ from ..userfile.car_setup import (
     set_car_setup_filename,
     set_car_setup_laptime,
 )
-from ..userfile.driver_stats import DriverStats, load_driver_stats, save_driver_stats
-from ..validator import generator_init
+from ..userfile.driver_stats import load_driver_stats, save_driver_stats
 from ._base import DataModule
 
 
@@ -45,9 +44,6 @@ class Realtime(DataModule):
     """Delta time data"""
 
     __slots__ = ()
-
-    def __init__(self, config, module_name):
-        super().__init__(config, module_name)
 
     def update_data(self):
         """Update module data"""
@@ -99,14 +95,14 @@ def stats_keys(vehicle_classification: str) -> tuple[str, str]:
     if vehicle_classification == "Class":
         name = api.read.vehicle.class_name()
     elif vehicle_classification == "Class - Brand":
-        brand_name = select_brand_name(vehicle_name=api.read.vehicle.vehicle_name())
+        brand_name = select_brand_name(api.read.vehicle.vehicle_model())
         class_name = api.read.vehicle.class_name()
         if brand_name:
             name = f"{class_name} - {brand_name}"
         else:  # fallback to class name
             name = class_name
     else:
-        name = api.read.vehicle.vehicle_name()
+        name = api.read.vehicle.vehicle_model()
     return api.read.session.track_name(), name
 
 
@@ -141,9 +137,7 @@ def record_driver_stats(
     last_reset = None  # reset check
     delayed_save = False
 
-    default_stats = DriverStats()
     driver_stats = DriverStats()
-    loaded_stats = default_stats
 
     while True:
         reset = yield None
@@ -165,7 +159,7 @@ def record_driver_stats(
             last_reset = reset
 
             # Load driver stats
-            driver_stats = DriverStats()
+            driver_stats.reset()
             loaded_stats = load_driver_stats(
                 key_list=stats_keys(vehicle_classification),
                 filepath=filepath,
@@ -173,65 +167,63 @@ def record_driver_stats(
             delayed_save = True
 
             is_pit_lap = 0
-            last_lap_stime = FLOAT_INF
-            last_lap_etime = FLOAT_INF
-            last_best_laptime = FLOAT_INF
-            last_raw_laptime = FLOAT_INF
+            last_lap_number = DATA.MAX_LAPS
+            last_elapsed_time = DATA.FLOAT_INF
+            laptime_best = DATA.FLOAT_INF
             last_num_penalties = 99999
             fuel_last = 0.0
             last_finish_state = 99999
-            gps_last = (FLOAT_INF, FLOAT_INF, FLOAT_INF)
+            gps_last = (DATA.FLOAT_INF, DATA.FLOAT_INF, DATA.FLOAT_INF)
 
         # General
-        lap_stime = api.read.timing.start()
-        lap_etime = api.read.timing.elapsed()
+        lap_number = api.read.lap.completed()
+        elapsed_time = api.read.timing.elapsed()
         is_pit_lap |= api.read.vehicle.in_pits()
         session_type = api.read.session.session_type()
+        laptime_curr = api.read.timing.current_laptime()
 
         # Best lap time
-        last_valid_laptime = api.read.timing.last_laptime()
-        if (last_best_laptime > last_valid_laptime > 1 and
-            abs(last_valid_laptime - last_raw_laptime) < 0.001):  # validate lap time
-            last_best_laptime = last_valid_laptime
+        laptime_last = api.read.timing.last_laptime()
+        if laptime_curr < 2 and laptime_best > laptime_last > 1:  # validate lap time
+            laptime_best = laptime_last
             # Personal best (any session)
-            if driver_stats.pb > last_valid_laptime:
-                driver_stats.pb = last_valid_laptime
+            if driver_stats.pb > laptime_last:
+                driver_stats.pb = laptime_last
             # Qualifying best
             if session_type == 2:
-                if driver_stats.qb > last_valid_laptime:
-                    driver_stats.qb = last_valid_laptime
+                if driver_stats.qb > laptime_last:
+                    driver_stats.qb = laptime_last
             # Race best
             elif session_type == 4:
-                if driver_stats.rb > last_valid_laptime:
-                    driver_stats.rb = last_valid_laptime
+                if driver_stats.rb > laptime_last:
+                    driver_stats.rb = laptime_last
 
         # Driven distance
         gps_curr = api.read.vehicle.position_xyz()
         if gps_last != gps_curr:
-            moved_distance = calc.distance(gps_last, gps_curr)
+            moved_distance = calc.dist(gps_last, gps_curr)
             if moved_distance < max_moved_distance:
                 driver_stats.meters += moved_distance
             gps_last = gps_curr
 
         # Laps complete
-        if last_lap_stime > lap_stime:
-            last_lap_stime = lap_stime
-        elif last_lap_stime < lap_stime and lap_etime - lap_stime > 2:
-            last_raw_laptime = lap_stime - last_lap_stime
-            if last_valid_laptime > 0: # valid lap check
+        if last_lap_number > lap_number:
+            last_lap_number = lap_number
+        elif last_lap_number < lap_number and laptime_curr > 2:
+            if laptime_last > 0: # valid lap check
                 driver_stats.valid += 1  # 1 lap at a time
             elif not is_pit_lap:  # only count non-pit invalid lap
                 driver_stats.invalid += 1
             is_pit_lap = 0
-            last_lap_stime = lap_stime
+            last_lap_number = lap_number
 
         # Seconds spent
-        if last_lap_etime > lap_etime:
-            last_lap_etime = lap_etime
-        elif last_lap_etime < lap_etime:
+        if last_elapsed_time > elapsed_time:
+            last_elapsed_time = elapsed_time
+        elif last_elapsed_time < elapsed_time:
             if api.read.vehicle.speed() > 1:  # while speed > 1m/s
-                driver_stats.seconds += lap_etime - last_lap_etime
-            last_lap_etime = lap_etime
+                driver_stats.seconds += elapsed_time - last_elapsed_time
+            last_elapsed_time = elapsed_time
 
         # Fuel consumed (liter)
         fuel_curr = api.read.engine.fuel()
@@ -275,7 +267,7 @@ def auto_backup_car_setup(filepath: str):
     last_reset = None  # reset check
     data_available = False
 
-    best_laptime = FLOAT_INF
+    best_laptime = DATA.FLOAT_INF
     temp_data = ()
     data_hash = 0
     last_data_hash = 0
@@ -302,16 +294,16 @@ def auto_backup_car_setup(filepath: str):
                 continue
             last_reset = reset
 
-            best_laptime = FLOAT_INF
+            best_laptime = DATA.FLOAT_INF
             temp_filename = ""
 
         # Get setup data while not in pits
         if not api.read.vehicle.in_pits():
             # Stint best time
             if data_available:
-                last_valid_laptime = api.read.timing.last_laptime()
-                if 0 < last_valid_laptime < best_laptime:
-                    best_laptime = last_valid_laptime
+                last_laptime = api.read.timing.last_laptime()
+                if 0 < last_laptime < best_laptime:
+                    best_laptime = last_laptime
             else:
                 temp_data = api.read.vehicle.setup()
                 if temp_data:
@@ -324,7 +316,7 @@ def auto_backup_car_setup(filepath: str):
                             strftime("%Y-%m-%d %H-%M-%S", localtime()),
                             api.read.session.track_name(),
                             api.read.vehicle.class_name(),
-                            select_brand_name(vehicle_name=api.read.vehicle.vehicle_name()),
+                            api.read.vehicle.vehicle_model(),
                         )
                         save_car_setup_file(
                             filepath=filepath,
